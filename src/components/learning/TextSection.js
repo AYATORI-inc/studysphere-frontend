@@ -29,6 +29,51 @@ const TextSection = ({
   // 処理済みのS3キーを記録（無限ループ防止）
   const processedS3KeyRef = useRef(null);
 
+  // PDF表示用（iframeはAuthorizationヘッダーを送れないため、fetchで取得してBlob URLにする）
+  const [pdfViewerUrl, setPdfViewerUrl] = useState(null);
+  const [pdfViewerError, setPdfViewerError] = useState(null);
+
+  useEffect(() => {
+    setPdfViewerUrl(null);
+    setPdfViewerError(null);
+
+    if (lessonData?.file_type !== 'pdf' || lessonData?.pdfUrl || !lessonData?.s3_key) {
+      return;
+    }
+
+    let cancelled = false;
+    let objectUrl = null;
+
+    const loadPdf = async () => {
+      try {
+        const token = localStorage.getItem('accessToken');
+        const response = await fetch(
+          `${API_BASE_URL}/api/learning/pdf-viewer?key=${encodeURIComponent(lessonData.s3_key)}`,
+          {
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+          }
+        );
+        if (!response.ok) {
+          throw new Error(`PDFの取得に失敗しました（${response.status}）`);
+        }
+        const blob = await response.blob();
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setPdfViewerUrl(objectUrl);
+      } catch (err) {
+        console.error('PDF取得エラー:', err);
+        if (!cancelled) setPdfViewerError(err.message);
+      }
+    };
+
+    loadPdf();
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [lessonData?.file_type, lessonData?.pdfUrl, lessonData?.s3_key]);
+
   // テキストファイルの処理（PDF、TXT、MD、RTFすべてに対応）
   useEffect(() => {
     console.log('TextSection useEffect - 実行開始');
@@ -292,7 +337,7 @@ const TextSection = ({
           console.error('エラー詳細:', errorData);
           
           // S3キーが存在しない場合の詳細なエラーメッセージ
-          if (errorData.error === 'The specified key does not exist.') {
+          if (errorData.message?.includes('does not exist')) {
             const detailedError = `PDFファイルが見つかりません。S3キー: ${s3Key}`;
             console.error(detailedError);
             setPdfProcessingError(detailedError);
@@ -493,28 +538,29 @@ const TextSection = ({
           <div className="h-full">
             {/* PDFをiframeで表示 */}
             <div className="w-full h-full border border-gray-300 rounded-lg overflow-hidden relative">
+              {!(lessonData.pdfUrl || pdfViewerUrl) && !pdfViewerError && (
+                <div className="absolute inset-0 flex items-center justify-center text-gray-500 bg-white">
+                  PDFを読み込み中...
+                </div>
+              )}
               <iframe
-                src={lessonData.pdfUrl || `${API_BASE_URL}/api/learning/pdf-viewer?key=${encodeURIComponent(lessonData.s3_key)}`}
+                src={lessonData.pdfUrl || pdfViewerUrl || undefined}
                 title="PDF Viewer"
                 className="w-full h-full"
                 frameBorder="0"
                 allow="fullscreen"
-                onError={(e) => {
-                  console.error('PDF iframe 読み込みエラー:', e);
-                  document.getElementById('pdf-error-fallback').classList.remove('hidden');
-                }}
-                onLoad={() => {
-                  console.log('PDF iframe 読み込み完了');
-                  document.getElementById('pdf-error-fallback').classList.add('hidden');
+                onError={() => {
+                  console.error('PDF iframe 読み込みエラー');
+                  setPdfViewerError('PDFの表示に失敗しました');
                 }}
               />
               {/* エラー時のフォールバック */}
-              <div className="absolute inset-0 bg-gray-100 flex items-center justify-center" id="pdf-error-fallback">
+              <div className={`absolute inset-0 bg-gray-100 flex items-center justify-center ${pdfViewerError ? '' : 'hidden'}`}>
                 <div className="text-center">
                   <p className="text-gray-600 mb-3">PDFの表示に失敗しました</p>
                   <div className="space-y-2">
                     <button 
-                      onClick={() => window.open(lessonData.pdfUrl || `${API_BASE_URL}/api/learning/pdf-viewer?key=${encodeURIComponent(lessonData.s3_key)}`, '_blank')}
+                      onClick={() => pdfViewerUrl && window.open(lessonData.pdfUrl || pdfViewerUrl, '_blank')}
                       className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 mr-2"
                     >
                       新しいタブで開く

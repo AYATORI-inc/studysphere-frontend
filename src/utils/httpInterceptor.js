@@ -19,6 +19,7 @@ const isAuthRequiredEndpoint = (url) => {
     '/register',
     '/forgot-password',
     '/api/messages/unread-count',
+    '/api/temp-passwords/status/',
     '/verify-temp-password',
     '/api/users/verify-temp-password',
     '/api/users/login',

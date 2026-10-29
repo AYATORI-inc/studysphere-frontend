@@ -33,7 +33,7 @@ const TestPage = () => {
         
         const lessonId = currentLesson;
         
-        const response = await fetch(`/api/learning/lesson/${lessonId}/content`, {
+        const response = await fetch(`${API_BASE_URL}/api/learning/lesson/${lessonId}/content`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
             'Content-Type': 'application/json'

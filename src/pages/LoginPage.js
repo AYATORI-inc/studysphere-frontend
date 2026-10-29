@@ -7,6 +7,9 @@ import { SANITIZE_OPTIONS } from '../utils/sanitizeUtils';
 import { addOperationLog } from '../utils/operationLogManager';
 import { API_BASE_URL } from '../config/apiConfig';
 
+// 試行回数の超過（レート制限: 429）時に表示するメッセージ
+const RATE_LIMIT_MESSAGE = 'ログインの試行回数が上限に達しました。しばらく時間をおいてから再度お試しください。';
+
 const LoginPage = () => {
   const [credentials, setCredentials] = useState({ id: '', password: '' });
   const [error, setError] = useState('');
@@ -80,6 +83,11 @@ const LoginPage = () => {
         headers: Object.fromEntries(response.headers.entries())
       });
 
+      // 試行回数の超過（レート制限）はJSON解析より前に判定する
+      if (response.status === 429) {
+        throw new Error(RATE_LIMIT_MESSAGE);
+      }
+
       // レスポンスのテキストを先に取得
       const responseText = await response.text();
       console.log('LoginPage: レスポンステキスト', responseText);
@@ -122,6 +130,10 @@ const LoginPage = () => {
       console.log('Response status:', response.status);
       console.log('Response ok:', response.ok);
 
+      if (response.status === 429) {
+        throw new Error(RATE_LIMIT_MESSAGE);
+      }
+
       const data = await response.json();
       console.log('Response data:', data);
       
@@ -146,6 +158,10 @@ const LoginPage = () => {
         },
         body: JSON.stringify({ username, password, companyId, satelliteId }),
       });
+
+      if (response.status === 429) {
+        throw new Error(RATE_LIMIT_MESSAGE);
+      }
 
       const data = await response.json();
       
