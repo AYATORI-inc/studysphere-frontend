@@ -19,6 +19,22 @@ const TEXT_ERROR_KEYWORDS = [
   '教材テキストを読み込めません'
 ];
 
+// セクションに紐づく動画を、VideoSection 表示用の配列に変換する（動画が無ければ空配列）
+// ※ レッスン全体の動画（lessonData.videos）をそのまま表示すると、複数動画が出てしまうため、
+//   動画の表示は必ずセクションの動画（最大1本）で決める
+const buildSectionVideos = (section) => {
+  if (!section || !section.video_id || !section.youtube_url) {
+    return [];
+  }
+  return [{
+    id: section.video_id,
+    title: section.video_title || 'セクション動画',
+    description: section.video_description || '',
+    youtube_url: section.youtube_url,
+    duration: section.video_duration || ''
+  }];
+};
+
 const EnhancedLearningPageRefactored = () => {
   const navigate = useNavigate();
   const { currentUser } = useContext(AuthContext);
@@ -351,6 +367,38 @@ const EnhancedLearningPageRefactored = () => {
     }
   }, [currentLesson]); // currentLessonのみに依存
 
+  // レッスンが変わったら、セクション一覧を取得する
+  // （動画の表示をセクション単位にすること、およびセクション切替（changeSection）を有効にするため）
+  useEffect(() => {
+    if (!currentLesson) return;
+
+    // 前のレッスンのセクション一覧が一瞬表示されないようにリセット
+    setSectionData(null);
+
+    const loadSectionList = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/lesson-text-video-links/lesson/${currentLesson}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        if (!response.ok) {
+          console.warn('セクション一覧の取得に失敗しました:', response.status);
+          return;
+        }
+        const data = await response.json();
+        if (data.success && Array.isArray(data.data)) {
+          setSectionData(data.data);
+        }
+      } catch (error) {
+        console.error('セクション一覧の取得エラー:', error);
+      }
+    };
+
+    loadSectionList();
+  }, [currentLesson]);
+
   // コンポーネントのアンマウント時にセッションストレージをクリーンアップ
   useEffect(() => {
     return () => {
@@ -390,29 +438,22 @@ const EnhancedLearningPageRefactored = () => {
   };
 
      // セクション変更処理
-   const changeSection = (sectionIndex) => {
+   // 動画の表示用：セクション一覧がある場合は「現在のセクションの動画」だけ、
+  // セクション一覧が無いレッスンだけレッスン全体の動画（lessonData.videos）を表示する
+  const getDisplayVideos = () => {
+    if (Array.isArray(sectionData) && sectionData.length > 0) {
+      return buildSectionVideos(sectionData[currentSection]);
+    }
+    return lessonData?.videos || [];
+  };
+
+  const changeSection = (sectionIndex) => {
      if (!sectionData || !Array.isArray(sectionData)) return;
      
      const newSection = sectionData[sectionIndex];
      if (!newSection) return;
      
      setCurrentSection(sectionIndex);
-     
-     // 動画がある場合のみ更新
-     if (newSection.video_id && newSection.youtube_url) {
-       const sectionVideo = {
-         id: newSection.video_id,
-         title: newSection.video_title || 'セクション動画',
-         description: newSection.video_description || '',
-         youtube_url: newSection.youtube_url,
-         duration: newSection.video_duration || ''
-       };
-       
-       setLessonData(prev => ({
-         ...prev,
-         videos: [sectionVideo]
-       }));
-     }
      
      // セクション固有のテキストファイルがある場合は、新しいコンテキストで処理
      if (newSection.text_file_key && newSection.text_file_key !== lessonData?.s3_key) {
@@ -555,21 +596,11 @@ const EnhancedLearningPageRefactored = () => {
      
      console.log('セクション内容を表示:', section);
      
-     // 動画がある場合のみ更新
-     if (section.video_id && section.youtube_url) {
-       const sectionVideo = {
-         id: section.video_id,
-         title: section.video_title || 'セクション動画',
-         description: section.video_description || '',
-         youtube_url: section.youtube_url,
-         duration: section.video_duration || ''
-       };
-       
-       setLessonData(prev => ({
-         ...prev,
-         videos: [sectionVideo]
-       }));
-     }
+     // セクションの動画のみを表示（動画が無いセクションでは空にし、前のセクションや全体の動画を残さない）
+     setLessonData(prev => ({
+       ...prev,
+       videos: buildSectionVideos(section)
+     }));
    };
 
      // セクションテキストコンテンツ取得は不要（PDF処理はTextSectionで自動実行）
@@ -1117,7 +1148,7 @@ const EnhancedLearningPageRefactored = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* 左カラム: 動画 */}
           <div className="lg:col-span-1">
-            <VideoSection lessonData={lessonData} />
+            <VideoSection lessonData={{ ...lessonData, videos: getDisplayVideos() }} />
           </div>
 
           {/* 中央カラム: テキスト */}

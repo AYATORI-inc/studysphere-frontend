@@ -28,8 +28,7 @@ const isAuthRequiredEndpoint = (url) => {
     '/api/users/forgot-password',
     '/api/remote-support/login',
     '/api/remote-support/check-temp-password',
-    '/api/remote-support/auto-login',
-    '/restore-master-user'
+    '/api/remote-support/auto-login'
   ];
   
   // 静的リソースやHMRファイルを除外

@@ -12,6 +12,16 @@ const API_BASE_URL = process.env.REACT_APP_API_URL ||
     ? 'https://backend.studysphere.ayatori-inc.co.jp' 
     : 'http://localhost:5050');
 
+// 認証ヘッダー（ログイン中のアクセストークン付き）を生成
+// 企業の作成・トークン再発行・削除は管理者（role 9以上）のみ、Authorization ヘッダーが必要
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('accessToken');
+  return {
+    'Content-Type': 'application/json',
+    ...(token && { 'Authorization': `Bearer ${token}` }),
+  };
+};
+
 const LocationManagement = () => {
   const { currentUser } = useAuth();
   
@@ -883,7 +893,7 @@ const LocationManagement = () => {
         });
         const companyResponse = await fetch(`${API_BASE_URL}/api/companies`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders(),
           body: JSON.stringify(companyData)
         });
         const companyResult = await companyResponse.json();
@@ -1370,7 +1380,7 @@ const LocationManagement = () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/companies/${companyId}/regenerate-token`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: getAuthHeaders()
       });
       
       const result = await response.json();
@@ -1401,7 +1411,7 @@ const LocationManagement = () => {
       try {
         const response = await fetch(`${API_BASE_URL}/api/companies/${company.id}`, {
           method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' }
+          headers: getAuthHeaders()
         });
         
         const result = await response.json();

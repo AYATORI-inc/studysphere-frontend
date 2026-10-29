@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { API_BASE_URL } from '../config/apiConfig';
 
 const TestPage = () => {
   const navigate = useNavigate();
@@ -134,7 +135,7 @@ const TestPage = () => {
       const lessonId = currentLesson;
       
       // テスト結果を提出
-      const response = await fetch('/api/learning/test/submit', {
+      const response = await fetch(`${API_BASE_URL}/api/learning/test/submit`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,

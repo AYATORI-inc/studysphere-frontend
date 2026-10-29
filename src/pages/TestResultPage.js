@@ -1,6 +1,22 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { API_BASE_URL } from '../config/apiConfig';
+
+// 解説APIの同時実行数（多すぎるとサーバー負荷と 500 エラーが増えるため、少数に抑える）
+const FEEDBACK_CONCURRENCY = 3;
+
+// 配列の各要素に対して fn を実行する。同時に動かす数は limit まで
+const runWithConcurrency = async (items, limit, fn) => {
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (cursor < items.length) {
+      const current = items[cursor];
+      cursor += 1;
+      await fn(current);
+    }
+  });
+  await Promise.all(workers);
+};
 
 const TestResultPage = () => {
   const navigate = useNavigate();
@@ -9,6 +25,8 @@ const TestResultPage = () => {
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // 解説の作成進捗（n/m 表示用）
+  const [feedbackProgress, setFeedbackProgress] = useState({ done: 0, total: 0 });
 
   // サンプル模範解答（実際のシステムでは、DBから取得する）
   const sampleAnswers = {
@@ -29,7 +47,7 @@ const TestResultPage = () => {
       const userAnswer = question.options[userAnswerIndex];
       const correctAnswer = question.options[correctAnswerIndex];
       
-      const response = await fetch(`${API_BASE_URL}/api/learning/generate-feedback`, {
+      const response = await fetch(`${API_BASE_URL}/api/test/learning/generate-feedback`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
@@ -46,11 +64,13 @@ const TestResultPage = () => {
       if (response.ok) {
         const result = await response.json();
         if (result.success) {
-          return result.feedback;
+          return { text: result.feedback, isFallback: false };
         }
       }
+      const errorBody = await response.text().catch(() => '');
+      console.warn('解説APIが失敗したため、定型の解説を表示します:', { status: response.status, body: errorBody });
     } catch (error) {
-      console.error('フィードバック生成エラー:', error);
+      console.warn('解説APIの呼び出しに失敗したため、定型の解説を表示します:', error);
     }
     
     // フォールバック: より詳細なデフォルトフィードバック
@@ -64,7 +84,7 @@ const TestResultPage = () => {
       `不正解でした。あなたの選択「${userAnswerText}」は正しくありません。正解は「${correctAnswerText}」です。\n\nこの問題は学習内容の重要な概念を問うています。正しい答えの理由を理解し、なぜ他の選択肢が適切でないのかも考えてみてください。\n\n学習は継続が大切です。この経験を活かして、より確実な知識を身につけていきましょう。`
     ];
     
-    return fallbackFeedbacks[Math.floor(Math.random() * fallbackFeedbacks.length)];
+    return { text: fallbackFeedbacks[Math.floor(Math.random() * fallbackFeedbacks.length)], isFallback: true };
   };
 
   useEffect(() => {
@@ -77,7 +97,7 @@ const TestResultPage = () => {
           
           // 実際のテスト結果詳細データを取得
           try {
-            const response = await fetch(`/api/learning/test-results/${testResult.lessonId}`, {
+            const response = await fetch(`${API_BASE_URL}/api/test/learning/test-results/${testResult.lessonId}`, {
               headers: {
                 'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
               }
@@ -249,29 +269,37 @@ const TestResultPage = () => {
         answers: answers
       });
       
-      for (let index = 0; index < questionsToUse.length; index++) {
-        const question = questionsToUse[index];
+      // 解説が必要な問題を、同時実行数を制限して並列に取得する（1件ずつ待つと、誤答が多いほど表示が遅くなるため）
+      const preparedItems = questionsToUse.map((question, index) => {
         const userAnswerIndex = answers[question.id];
-        const userAnswer = userAnswerIndex !== undefined ? 
-          `${userAnswerIndex + 1}. ${question.options[userAnswerIndex]}` : 
-          "未回答";
+        const userAnswer = userAnswerIndex !== undefined
+          ? `${userAnswerIndex + 1}. ${question.options[userAnswerIndex]}`
+          : "未回答";
         const correctAnswer = `${question.correctAnswer + 1}. ${question.options[question.correctAnswer]}`;
         const isCorrect = userAnswerIndex === question.correctAnswer;
-        
-        console.log(`TestResultPage: 問題${index + 1} (ID: ${question.id})`, {
-          userAnswerIndex,
-          correctAnswerIndex: question.correctAnswer,
-          isCorrect,
-          userAnswer,
-          correctAnswer
-        });
-        
+        return { index, question, userAnswerIndex, userAnswer, correctAnswer, isCorrect };
+      });
+
+      // 解説が必要なのは「回答があり、不正解の問題」のみ
+      const feedbackTargets = preparedItems.filter(item => !item.isCorrect && item.userAnswerIndex !== undefined);
+      const feedbackByIndex = {};
+      setFeedbackProgress({ done: 0, total: feedbackTargets.length });
+
+      await runWithConcurrency(feedbackTargets, FEEDBACK_CONCURRENCY, async (item) => {
+        feedbackByIndex[item.index] = await generateDynamicFeedback(item.question, item.userAnswerIndex, item.question.correctAnswer);
+        setFeedbackProgress(prev => ({ ...prev, done: prev.done + 1 }));
+      });
+
+      // 問題の順番どおりに結果を組み立てる
+      preparedItems.forEach((item) => {
+        const { question, userAnswerIndex, userAnswer, correctAnswer, isCorrect } = item;
         let feedback = "";
+        let feedbackIsFallback = false;
         if (isCorrect) {
           feedback = "正解です！よく理解できています。";
         } else if (userAnswerIndex !== undefined) {
-          // 不正解の場合は動的フィードバックを生成
-          feedback = await generateDynamicFeedback(question, userAnswerIndex, question.correctAnswer);
+          feedback = feedbackByIndex[item.index].text;
+          feedbackIsFallback = feedbackByIndex[item.index].isFallback;
         } else {
           feedback = "未回答です。学習内容を確認して再受験してください。";
         }
@@ -282,10 +310,11 @@ const TestResultPage = () => {
           userAnswer,
           correctAnswer,
           feedback,
+          feedbackIsFallback,
           isCorrect,
           score: isCorrect ? 1 : 0
         });
-      }
+      });
       
       console.log('TestResultPage: 問題別結果生成完了', {
         totalResults: result.results.length,
@@ -352,7 +381,7 @@ const TestResultPage = () => {
           });
           
           // テスト結果を保存（既にテスト提出時に保存済みの場合は不要）
-          const response = await fetch('/api/learning/test/submit', {
+          const response = await fetch(`${API_BASE_URL}/api/learning/test/submit`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
@@ -436,7 +465,11 @@ const TestResultPage = () => {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">テスト結果を処理中...</p>
+          <p className="mt-4 text-gray-600">
+            {feedbackProgress.total > 0
+              ? `解説を作成中 ${feedbackProgress.done}/${feedbackProgress.total}`
+              : 'テスト結果を処理中...'}
+          </p>
         </div>
       </div>
     );
@@ -600,7 +633,10 @@ const TestResultPage = () => {
                       <span className="text-yellow-600">💡</span>
                       <h4 className="font-semibold text-yellow-800">フィードバック</h4>
                     </div>
-                    <p className="text-yellow-700">{resultData.results[currentQuestion].feedback}</p>
+                    <p className="text-yellow-700 whitespace-pre-line">{resultData.results[currentQuestion].feedback}</p>
+                    {resultData.results[currentQuestion].feedbackIsFallback && (
+                      <p className="mt-2 text-xs text-gray-500">※ AI解説を取得できなかったため、定型の解説を表示しています。</p>
+                    )}
                   </div>
                 </div>
               )}

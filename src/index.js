@@ -1,3 +1,5 @@
+// 必ず最初に読み込む（console.log の抑止を、他モジュールの評価より先に行うため）
+import './utils/consoleFilter';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';

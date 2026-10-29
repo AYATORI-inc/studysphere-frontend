@@ -16,25 +16,18 @@ const isProduction = process.env.NODE_ENV === 'production' ||
 console.log('isProduction:', isProduction);
 
 // API URL設定
-// 開発環境では127.0.0.1:5050を使用（バックエンドのデータベース接続と統一）
-// 開発環境（localhost:3000）では、環境変数が設定されていても開発バックエンドを使用
-const isDevelopmentHost = window.location.hostname === 'localhost' || 
-                          window.location.hostname === '127.0.0.1' ||
-                          (window.location.hostname === 'localhost' && window.location.port === '3000');
-
+// 環境変数 REACT_APP_API_URL が設定されていれば、それを最優先で使用する
+// （.env.local / .env で指定。開発環境・本番環境の区別なし）
+// 未設定の場合のみ、従来どおり本番判定・開発判定でデフォルトを決める
 let API_BASE_URL;
-if (isProduction) {
-  // 本番環境
-  API_BASE_URL = process.env.REACT_APP_API_URL || 'https://backend.studysphere.ayatori-inc.co.jp';
-} else if (isDevelopmentHost) {
-  // 開発環境（localhost:3000）では強制的に開発バックエンドを使用
-  API_BASE_URL = 'http://127.0.0.1:5050';
-  if (process.env.REACT_APP_API_URL && process.env.REACT_APP_API_URL !== 'http://127.0.0.1:5050') {
-    console.warn('⚠️ 開発環境では環境変数REACT_APP_API_URLを無視し、http://127.0.0.1:5050を使用します');
-  }
+if (process.env.REACT_APP_API_URL) {
+  API_BASE_URL = process.env.REACT_APP_API_URL;
+} else if (isProduction) {
+  // 本番環境（デフォルト）
+  API_BASE_URL = 'https://backend.studysphere.ayatori-inc.co.jp';
 } else {
-  // その他の環境（環境変数があればそれを使用、なければ開発バックエンド）
-  API_BASE_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:5050';
+  // 開発環境（デフォルト: 開発バックエンド）
+  API_BASE_URL = 'http://127.0.0.1:5050';
 }
 
 console.log('API_BASE_URL:', API_BASE_URL);

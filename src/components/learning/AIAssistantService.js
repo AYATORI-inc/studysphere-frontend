@@ -29,7 +29,6 @@ class AIAssistantService {
           question,
           context: truncatedContext,
           lessonTitle,
-          model: 'gpt-4o',
           maxTokens: 1000,
           temperature: 0.6, // 適度な温度で柔軟性と正確性のバランスを取る
           systemPrompt: this.getSystemPrompt()

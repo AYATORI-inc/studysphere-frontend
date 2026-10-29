@@ -4,6 +4,10 @@ import MultipleChoiceTest from '../components/learning/MultipleChoiceTest';
 import { SessionStorageManager } from '../utils/sessionStorage';
 import { API_BASE_URL } from '../config/apiConfig';
 
+// 学習画面（TextSection）やレッスンコンテンツ取得で保存されるコンテキストのキー接頭辞
+// generateKey の形式は共通: `${prefix}_${lessonId}_${lessonId}_${fileName}`
+const CONTEXT_KEY_PREFIXES = ['pdf_context_', 'md_context_', 'txt_context_', 'context_'];
+
 const SectionTestPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -153,6 +157,46 @@ const SectionTestPage = () => {
     fetchData();
   }, [currentLesson, currentSection]);
 
+  // レッスンコンテンツAPIからテキストを取得し、セッションストレージにコンテキストとして保存する
+  // 保存できた場合はそのキーを返す。取得・保存に失敗した場合は null
+  const saveLessonContentAsContext = async (lessonId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/learning/lesson/${lessonId}/content`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (!response.ok) {
+        console.warn('レッスンコンテンツAPIの取得に失敗しました:', response.status);
+        return null;
+      }
+
+      const result = await response.json();
+      const textContent = result?.data?.textContent;
+      if (!result.success || !textContent || textContent.trim().length === 0) {
+        console.warn('レッスンコンテンツにテキストがありません');
+        return null;
+      }
+
+      // 学習画面（TextSection）と同じ fileType で保存し、同じキー形式（md_context_ 等）にそろえる
+      const fileType = lessonData?.file_type || 'txt';
+      const s3Key = `lesson_${lessonId}_content`;
+      const saved = SessionStorageManager.saveContext(lessonId, s3Key, textContent, {
+        fileType,
+        lessonTitle: lessonData?.title,
+        source: 'lesson_content_api'
+      });
+      if (!saved) {
+        return null;
+      }
+      return SessionStorageManager.generateKey(lessonId, s3Key, fileType);
+    } catch (error) {
+      console.error('レッスンコンテンツの取得・保存に失敗しました:', error);
+      return null;
+    }
+  };
+
   // セッションストレージから直接コンテキストを取得してテスト生成
   const generateTestDataFromSessionStorage = async (forceRefresh = false) => {
     try {
@@ -187,7 +231,9 @@ const SectionTestPage = () => {
       }
       
       // セッションストレージの全コンテキストキーを確認
-      const allKeys = Object.keys(sessionStorage).filter(key => key.startsWith('pdf_context_'));
+      const allKeys = Object.keys(sessionStorage).filter(key =>
+        CONTEXT_KEY_PREFIXES.some(prefix => key.startsWith(prefix))
+      );
       console.log('利用可能なコンテキストキー:', allKeys);
       
       // 現在のレッスンに対応するコンテキストを探す（改善されたマッチング）
@@ -249,13 +295,6 @@ const SectionTestPage = () => {
         if (currentLessonKey) {
           console.log(`部分文字列マッチでコンテキスト発見: ${currentLessonKey}`);
         }
-      }
-      
-      // 5. フォールバック: 利用可能なコンテキストの最初のものを使用（デバッグ用）
-      if (!currentLessonKey && allKeys.length > 0) {
-        console.warn(`レッスン${currentLesson}のコンテキストが見つからないため、利用可能な最初のコンテキストを使用します`);
-        currentLessonKey = allKeys[0];
-        console.log(`フォールバックコンテキスト: ${currentLessonKey}`);
       }
       
       if (!currentLessonKey) {
@@ -342,9 +381,16 @@ const SectionTestPage = () => {
           }
         }
         
-        console.warn('テスト生成に必要なデータが揃わないため、ユーザーに再試行を促します');
-        handleTestGenerationFailure('利用可能なコンテキストが見つかりません');
-        return;
+        // フォールバック: セッションストレージにコンテキストが無い場合（直接アクセス・別タブ等）は、
+        // レッスンコンテンツAPIからテキストを取得して保存し、そのまま続行する
+        console.log('セッションストレージにコンテキストが無いため、レッスンコンテンツAPIから取得します');
+        const fallbackKey = await saveLessonContentAsContext(currentLesson);
+        if (!fallbackKey) {
+          console.warn('テスト生成に必要なデータが揃わないため、ユーザーに再試行を促します');
+          handleTestGenerationFailure('利用可能なコンテキストが見つかりません');
+          return;
+        }
+        currentLessonKey = fallbackKey;
       }
       
       // セッションストレージからコンテキストを取得
