@@ -1,3 +1,5 @@
+// コンソール抑止は他のimportより先に読み込む（起動時ログも対象にするため）
+import './utils/consoleFilter';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';

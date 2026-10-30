@@ -36,7 +36,7 @@ REM フロントエンドディレクトリに移動
 cd /d "%FRONTEND_DIR%"
 
 REM ConoHaWing用の環境変数を設定
-set REACT_APP_API_URL=https://backend.studysphere.ayatori-inc.co.jp
+set REACT_APP_API_URL=https://studysphere-backend.ayatori-inc.co.jp
 set NODE_ENV=production
 
 echo API URL: %REACT_APP_API_URL%

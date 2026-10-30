@@ -33,7 +33,7 @@ mkdir -p "$DEPLOY_DIR"
 cd "$FRONTEND_DIR"
 
 # ConoHaWing用の環境変数を設定
-export REACT_APP_API_URL=https://backend.studysphere.ayatori-inc.co.jp
+export REACT_APP_API_URL=https://studysphere-backend.ayatori-inc.co.jp
 export NODE_ENV=production
 
 echo "API URL: $REACT_APP_API_URL"
