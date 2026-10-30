@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useInstructorGuard } from '../utils/hooks/useAuthGuard';
 import { API_BASE_URL } from '../config/apiConfig';
+import { apiCall } from '../utils/api';
 import { getCurrentUserSatelliteId } from '../utils/locationUtils';
 
 /**
@@ -366,22 +367,37 @@ const WeeklyEvaluationPage = () => {
     setExpandedRecords(newExpandedRecords);
   };
 
-  // AIで評価案を生成
-  const generateEvaluationWithAI = () => {
-    setIsGenerating(true);
-    
-    // AIによる評価案生成のシミュレーション
-    setTimeout(() => {
-      const suggestion = `・対象期間中の作業の進め方や、設定した目標の達成度を確認しました。
-・HTML/CSSの基礎学習は順調に進んでおり、レスポンシブデザインの理解も深まっています。
-・毎日の進捗確認を通じて、計画的に学習を進める習慣が身についてきました。
-・集中力が途切れることも少なく、適度な休憩を取りながら効率的に作業できています。
-・生活面では、規則正しい生活リズムを維持できており、体調も安定しています。
-・来週は、より実践的な課題に取り組み、スキルの定着を図っていく方針です。`;
-      
-      updateEvaluation('content', suggestion);
+  // AIで評価案を生成（バックエンドのAI APIを呼び出す）
+  const generateEvaluationWithAI = async () => {
+    if (!student?.id || !periodStart || !periodEnd) {
+      alert('対象期間を設定してください。');
+      return;
+    }
+
+    try {
+      setIsGenerating(true);
+      const response = await apiCall('/api/weekly-evaluation-ai/generate-evaluation-content', {
+        method: 'POST',
+        body: JSON.stringify({
+          user_id: student.id,
+          period_start: periodStart,
+          period_end: periodEnd,
+          evaluation_method: evaluationData.method === 'その他' ? evaluationData.methodOther : evaluationData.method,
+          recorder_name: evaluationData.recorder
+        })
+      });
+
+      if (response.success && response.data?.evaluation_content) {
+        updateEvaluation('content', response.data.evaluation_content);
+      } else {
+        alert('評価内容の生成に失敗しました: ' + (response.message || 'エラーが発生しました'));
+      }
+    } catch (error) {
+      console.error('AI評価内容生成エラー:', error);
+      alert('評価内容の生成中にエラーが発生しました: ' + error.message);
+    } finally {
       setIsGenerating(false);
-    }, 1500);
+    }
   };
 
   // 保存
