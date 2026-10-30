@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { API_BASE_URL } from '../config/apiConfig';
 
 const TestPage = () => {
   const navigate = useNavigate();
@@ -33,7 +34,7 @@ const TestPage = () => {
         
         const lessonId = currentLesson;
         
-        const response = await fetch(`/api/learning/lesson/${lessonId}/content`, {
+        const response = await fetch(`${API_BASE_URL}/api/learning/lesson/${lessonId}/content`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
             'Content-Type': 'application/json'

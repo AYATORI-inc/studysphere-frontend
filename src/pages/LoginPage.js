@@ -7,6 +7,9 @@ import { SANITIZE_OPTIONS } from '../utils/sanitizeUtils';
 import { addOperationLog } from '../utils/operationLogManager';
 import { API_BASE_URL } from '../config/apiConfig';
 
+// 試行回数の超過（レート制限: 429）時に表示するメッセージ
+const RATE_LIMIT_MESSAGE = 'ログインの試行回数が上限に達しました。しばらく時間をおいてから再度お試しください。';
+
 const LoginPage = () => {
   const [credentials, setCredentials] = useState({ id: '', password: '' });
   const [error, setError] = useState('');
@@ -19,8 +22,6 @@ const LoginPage = () => {
   const [satellites, setSatellites] = useState([]);
   const [selectedCompany, setSelectedCompany] = useState('');
   const [selectedSatellite, setSelectedSatellite] = useState('');
-  const [isRestoring, setIsRestoring] = useState(false);
-  const [restoreMessage, setRestoreMessage] = useState('');
   const navigate = useNavigate();
   const { login, isAuthenticated, currentUser } = useAuth();
 
@@ -29,34 +30,6 @@ const LoginPage = () => {
     localStorage.clear();
     sessionStorage.clear();
     window.location.reload();
-  };
-
-  // マスターユーザー復旧機能
-  const restoreMasterUser = async () => {
-    setIsRestoring(true);
-    setRestoreMessage('');
-    
-    try {
-      const response = await fetch('/api/restore-master-user', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const data = await response.json();
-      
-      if (data.success) {
-        setRestoreMessage(`✅ ${data.message}\n\nユーザーID: ${data.data.user_id}\nパスワード: ${data.data.password}\nロール: ${data.data.role}`);
-      } else {
-        setRestoreMessage(`❌ ${data.message}`);
-      }
-    } catch (error) {
-      console.error('Master user restoration error:', error);
-      setRestoreMessage('❌ マスターユーザー復旧処理中にエラーが発生しました');
-    } finally {
-      setIsRestoring(false);
-    }
   };
 
   // 認証済みユーザーがログインページにアクセスした場合のリダイレクト
@@ -110,6 +83,11 @@ const LoginPage = () => {
         headers: Object.fromEntries(response.headers.entries())
       });
 
+      // 試行回数の超過（レート制限）はJSON解析より前に判定する
+      if (response.status === 429) {
+        throw new Error(RATE_LIMIT_MESSAGE);
+      }
+
       // レスポンスのテキストを先に取得
       const responseText = await response.text();
       //console.log('LoginPage: レスポンステキスト', responseText);
@@ -152,6 +130,10 @@ const LoginPage = () => {
       console.log('Response status:', response.status);
       console.log('Response ok:', response.ok);
 
+      if (response.status === 429) {
+        throw new Error(RATE_LIMIT_MESSAGE);
+      }
+
       const data = await response.json();
       console.log('Response data:', data);
       
@@ -176,6 +158,10 @@ const LoginPage = () => {
         },
         body: JSON.stringify({ username, password, companyId, satelliteId }),
       });
+
+      if (response.status === 429) {
+        throw new Error(RATE_LIMIT_MESSAGE);
+      }
 
       const data = await response.json();
       
@@ -962,27 +948,6 @@ const LoginPage = () => {
           >
             キャッシュをクリアして再ログイン
           </button>
-          
-          <div className="border-t border-gray-200 pt-4" style={{ display: 'none' }}>
-            <button
-              onClick={restoreMasterUser}
-              disabled={isRestoring}
-              className="text-sm bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isRestoring ? '復旧中...' : 'マスターユーザー復旧'}
-            </button>
-            <p className="text-xs text-gray-500 mt-1">
-              データ消失時の緊急復旧用
-            </p>
-          </div>
-          
-          {restoreMessage && (
-            <div className="mt-3 p-3 bg-gray-100 border border-gray-300 rounded text-sm">
-              <div style={{ whiteSpace: 'pre-line' }}>
-                {restoreMessage}
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>

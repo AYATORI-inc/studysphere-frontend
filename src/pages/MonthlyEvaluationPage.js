@@ -557,7 +557,7 @@ const MonthlyEvaluationPage = () => {
         saveLocationAndNavigate();
       } else {
         // より詳細なエラーメッセージを表示
-        const errorDetails = response.error || response.message || 'エラーが発生しました';
+        const errorDetails = response.message || 'エラーが発生しました';
         console.error('保存エラー詳細 (response):', JSON.stringify(response, null, 2));
         alert('保存に失敗しました: ' + errorDetails);
       }
@@ -567,7 +567,7 @@ const MonthlyEvaluationPage = () => {
       console.error('error.response:', error.response);
       console.error('error.response?.data:', error.response?.data);
       // より詳細なエラーメッセージを表示
-      const errorMessage = error.response?.data?.error || error.response?.data?.message || error.message || '不明なエラーが発生しました';
+      const errorMessage = error.response?.data?.message || error.message || '不明なエラーが発生しました';
       console.error('表示されるエラーメッセージ:', errorMessage);
       alert('保存中にエラーが発生しました: ' + errorMessage);
     } finally {
@@ -661,7 +661,7 @@ const MonthlyEvaluationPage = () => {
         // Excelダウンロードのために画面遷移はしない
       } else {
         // より詳細なエラーメッセージを表示
-        const errorDetails = response.error || response.message || 'エラーが発生しました';
+        const errorDetails = response.message || 'エラーが発生しました';
         console.error('保存エラー詳細 (response):', JSON.stringify(response, null, 2));
         alert(`保存に失敗しましたが、Excelダウンロードを続行します: ${errorDetails}`);
       }
@@ -672,7 +672,7 @@ const MonthlyEvaluationPage = () => {
       console.error('error.response:', error.response);
       console.error('error.response?.data:', error.response?.data);
       // より詳細なエラーメッセージを表示
-      const errorMessage = error.response?.data?.error || error.response?.data?.message || error.message || '不明なエラーが発生しました';
+      const errorMessage = error.response?.data?.message || error.message || '不明なエラーが発生しました';
       console.error('表示されるエラーメッセージ:', errorMessage);
       alert(`保存中にエラーが発生しましたが、Excelダウンロードを続行します: ${errorMessage}`);
     } finally {

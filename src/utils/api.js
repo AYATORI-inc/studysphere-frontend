@@ -114,7 +114,9 @@ export const apiCall = async (endpoint, options = {}, retryCount = 0) => {
         '/refresh',
         '/register',
         '/forgot-password',
-        '/api/messages/unread-count'
+        '/api/messages/unread-count',
+        '/api/users/verify-temp-password',
+        '/api/temp-passwords/status/'
       ];
       
       const isAuthExcluded = authExcludedEndpoints.some(excludedEndpoint => endpoint.includes(excludedEndpoint));
@@ -362,7 +364,9 @@ export const apiDownloadBinary = async (endpoint, options = {}) => {
         '/refresh',
         '/register',
         '/forgot-password',
-        '/api/messages/unread-count'
+        '/api/messages/unread-count',
+        '/api/users/verify-temp-password',
+        '/api/temp-passwords/status/'
       ];
       
       const isAuthExcluded = authExcludedEndpoints.some(excludedEndpoint => endpoint.includes(excludedEndpoint));

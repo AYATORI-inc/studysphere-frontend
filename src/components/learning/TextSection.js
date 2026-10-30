@@ -900,7 +900,7 @@ const TextSection = ({
           console.error('エラー詳細:', errorData);
           
           // S3キーが存在しない場合の詳細なエラーメッセージ
-          if (errorData.error === 'The specified key does not exist.') {
+          if (errorData.message?.includes('does not exist')) {
             const detailedError = `PDFファイルが見つかりません。S3キー: ${s3Key}`;
             console.error(detailedError);
             setPdfProcessingError(detailedError);

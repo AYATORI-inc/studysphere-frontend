@@ -891,7 +891,7 @@ const LocationManagement = () => {
             const errorMessages = companyResult.errors.map(err => err.msg).join(', ');
             throw new Error(`組織の作成に失敗しました: ${errorMessages}`);
           }
-          throw new Error(companyResult.message || companyResult.error || '組織の作成に失敗しました');
+          throw new Error(companyResult.message || '組織の作成に失敗しました');
         }
         companyId = companyResult.data.id;
         showNotification('組織が正常に作成されました', 'success');
@@ -917,7 +917,7 @@ const LocationManagement = () => {
       const result = await response.json();
       console.log('拠点作成レスポンス:', result);
       if (!result.success) {
-        throw new Error(result.message || result.error || '拠点の追加に失敗しました');
+        throw new Error(result.message || '拠点の追加に失敗しました');
       }
       // トークン・有効期限をモーダルで表示
       setTokenModal({

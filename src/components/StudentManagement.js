@@ -419,7 +419,6 @@ const StudentManagementRefactored = ({ teacherId, onTestApproval, onSubmissionAp
       console.log('レスポンス詳細:', {
         success: response.success,
         message: response.message,
-        error: response.error,
         hasData: !!response.data,
         dataLength: response.data ? response.data.length : 0
       });
@@ -456,22 +455,20 @@ const StudentManagementRefactored = ({ teacherId, onTestApproval, onSubmissionAp
         
         setStudents(studentUsers);
       } else {
-        console.error('拠点利用者取得に失敗しました:', response.message || response.error || '不明なエラー');
+        console.error('拠点利用者取得に失敗しました:', response.message || '不明なエラー');
         console.error('失敗レスポンスの詳細:', {
           response: response,
           responseType: typeof response,
           responseKeys: Object.keys(response || {}),
           message: response.message,
-          error: response.error,
           success: response.success
         });
         
         // 認証エラーの場合は特別な処理
-        if ((response.message && response.message.includes('認証')) || 
-            (response.error && response.error.includes('認証'))) {
+        if (response.message && response.message.includes('認証')) {
           setError('認証に失敗しました。ログインし直してください。');
         } else {
-          const errorMessage = response.message || response.error || '不明なエラー';
+          const errorMessage = response.message || '不明なエラー';
           setError(`拠点利用者の取得に失敗しました: ${errorMessage}`);
         }
         setStudents([]);
