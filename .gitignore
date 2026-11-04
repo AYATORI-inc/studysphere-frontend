@@ -37,6 +37,7 @@ backups/
 **/backups/
 # support-app installers (versioned)
 public/support-app/StudySphereApp Setup *.exe
+public/support-app/RemoteSupportApp Setup *.exe
 public/support-app/StudySphereApp-*-mac.dmg
 public/support-app/StudySphereApp-*-mac.zip
 .env

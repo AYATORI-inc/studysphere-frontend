@@ -95,8 +95,11 @@ export const apiCall = async (endpoint, options = {}, retryCount = 0) => {
     console.log(`API呼び出し: ${config.method || 'GET'} ${url}${retryCount > 0 ? ` (再試行 ${retryCount})` : ''}`);
     
     // タイムアウト設定を追加
+    // AI生成APIは処理に時間がかかるため長めに待つ（通常は15秒）
+    const isAiEndpoint = endpoint.includes('-ai/');
+    const timeoutMs = options.timeoutMs ?? (isAiEndpoint ? 120000 : 15000);
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15秒タイムアウトに延長
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     
     const response = await fetch(url, {
       ...config,

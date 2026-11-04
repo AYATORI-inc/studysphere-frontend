@@ -2,6 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { API_BASE_URL } from '../config/apiConfig';
 
+// 解説APIの同時実行数（多すぎるとサーバー負荷と 500 エラーが増えるため、少数に抑える）
+const FEEDBACK_CONCURRENCY = 3;
+
+// 配列の各要素に対して fn を実行する。同時に動かす数は limit まで
+const runWithConcurrency = async (items, limit, fn) => {
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (cursor < items.length) {
+      const current = items[cursor];
+      cursor += 1;
+      await fn(current);
+    }
+  });
+  await Promise.all(workers);
+};
+
 const TestResultPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -12,6 +28,8 @@ const TestResultPage = () => {
   const [error, setError] = useState(null);
   const [nextLesson, setNextLesson] = useState(null);
   const [nextSection, setNextSection] = useState(null);
+  // 解説の作成進捗（n/m 表示用）
+  const [feedbackProgress, setFeedbackProgress] = useState({ done: 0, total: 0 });
 
   // サンプル模範解答（実際のシステムでは、DBから取得する）
   const sampleAnswers = {
@@ -26,13 +44,31 @@ const TestResultPage = () => {
     3: "学習意欲が感じられます。疑問点を解決することで、より深い理解につながります。"
   };
 
+  // 不正解の問題の解説を、同時実行数を制限して先に並列取得する（1件ずつ待つと遅いため）
+  const prefetchFeedbacks = async (questions, answers) => {
+    const targets = [];
+    questions.forEach((question, index) => {
+      const userAnswerIndex = answers[question.id];
+      if (userAnswerIndex !== undefined && userAnswerIndex !== question.correctAnswer) {
+        targets.push({ index, question, userAnswerIndex });
+      }
+    });
+    const feedbackByIndex = {};
+    setFeedbackProgress({ done: 0, total: targets.length });
+    await runWithConcurrency(targets, FEEDBACK_CONCURRENCY, async (item) => {
+      feedbackByIndex[item.index] = await generateDynamicFeedback(item.question, item.userAnswerIndex, item.question.correctAnswer);
+      setFeedbackProgress(prev => ({ ...prev, done: prev.done + 1 }));
+    });
+    return feedbackByIndex;
+  };
+
   // 動的フィードバック生成関数
   const generateDynamicFeedback = async (question, userAnswerIndex, correctAnswerIndex) => {
     try {
       const userAnswer = question.options[userAnswerIndex];
       const correctAnswer = question.options[correctAnswerIndex];
       
-      const response = await fetch(`${API_BASE_URL}/api/learning/generate-feedback`, {
+      const response = await fetch(`${API_BASE_URL}/api/test/learning/generate-feedback`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
@@ -49,7 +85,7 @@ const TestResultPage = () => {
       if (response.ok) {
         const result = await response.json();
         if (result.success) {
-          return result.feedback;
+          return { text: result.feedback, isFallback: false };
         }
       }
     } catch (error) {
@@ -87,13 +123,14 @@ const TestResultPage = () => {
       reviewBlock = `この設問（「${questionSummary}」）で正解となるのは「${correctAnswerText}」です。「${userAnswerText}」は問いが求めている内容とずれているため誤り。次回同じような問い方では、問いの中心に直接答えている選択肢「${correctAnswerText}」を選ぶと正解できます。教材の該当テーマで、正解と誤答の違いを一文で言えるようにまとめておきましょう。`;
     }
 
-    return `この問題では「${questionSummary}」について問われています。\n\n` +
+    const text = `この問題では「${questionSummary}」について問われています。\n\n` +
       `正解は「${correctAnswerText}」です。\n\n` +
       `【正解への道標】\n` +
       pathBlock + "\n\n" +
       `【復習のポイント】\n` +
       reviewBlock + "\n\n" +
       `この機会に押さえ直して、次回に活かしましょう。`;
+    return { text, isFallback: true };
   };
 
   useEffect(() => {
@@ -111,7 +148,7 @@ const TestResultPage = () => {
           
           // 実際のテスト結果詳細データを取得
           try {
-            const response = await fetch(`/api/learning/test-results/${testResult.lessonId}`, {
+            const response = await fetch(`${API_BASE_URL}/api/test/learning/test-results/${testResult.lessonId}`, {
               headers: {
                 'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
               }
@@ -128,6 +165,7 @@ const TestResultPage = () => {
                 const questionsToUse = detailData.shuffledQuestions || detailData.testData?.questions || [];
                 const answers = detailData.answers || {};
                 
+                const feedbackByIndex = await prefetchFeedbacks(questionsToUse, answers);
                 const results = [];
                 for (let index = 0; index < questionsToUse.length; index++) {
                   const question = questionsToUse[index];
@@ -142,7 +180,7 @@ const TestResultPage = () => {
                   if (isCorrect) {
                     feedback = "正解です！よく理解できています。";
                   } else if (userAnswerIndex !== undefined) {
-                    feedback = await generateDynamicFeedback(question, userAnswerIndex, question.correctAnswer);
+                    feedback = feedbackByIndex[index]?.text ?? '';
                   } else {
                     feedback = "未回答です。学習内容を確認して再受験してください。";
                   }
@@ -153,6 +191,7 @@ const TestResultPage = () => {
                     userAnswer,
                     correctAnswer,
                     feedback,
+                    feedbackIsFallback: feedbackByIndex[index]?.isFallback === true,
                     isCorrect,
                     score: isCorrect ? 1 : 0
                   });
@@ -285,6 +324,9 @@ const TestResultPage = () => {
         results: []
       };
 
+      // 不正解の解説を先に並列取得してから、問題の順番どおりに結果を組み立てる
+      const feedbackByIndex = await prefetchFeedbacks(questionsToUse, answers);
+
       // 各問題の結果を生成（シャッフルされた問題データを使用）
       console.log('TestResultPage: 問題別結果生成開始', {
         questionsCount: questionsToUse.length,
@@ -313,8 +355,8 @@ const TestResultPage = () => {
         if (isCorrect) {
           feedback = "正解です！よく理解できています。";
         } else if (userAnswerIndex !== undefined) {
-          // 不正解の場合は動的フィードバックを生成
-          feedback = await generateDynamicFeedback(question, userAnswerIndex, question.correctAnswer);
+          // 不正解の場合は先に取得済みの解説を使う
+          feedback = feedbackByIndex[index]?.text ?? '';
         } else {
           feedback = "未回答です。学習内容を確認して再受験してください。";
         }
@@ -325,6 +367,7 @@ const TestResultPage = () => {
           userAnswer,
           correctAnswer,
           feedback,
+          feedbackIsFallback: feedbackByIndex[index]?.isFallback === true,
           isCorrect,
           score: isCorrect ? 1 : 0
         });
@@ -454,7 +497,7 @@ const TestResultPage = () => {
           });
           
           // テスト結果を保存（既にテスト提出時に保存済みの場合は不要）
-          const response = await fetch('/api/learning/test/submit', {
+          const response = await fetch(`${API_BASE_URL}/api/learning/test/submit`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
@@ -589,7 +632,11 @@ const TestResultPage = () => {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">テスト結果を処理中...</p>
+          <p className="mt-4 text-gray-600">
+            {feedbackProgress.total > 0
+              ? `解説を作成中 ${feedbackProgress.done}/${feedbackProgress.total}`
+              : 'テスト結果を処理中...'}
+          </p>
         </div>
       </div>
     );
@@ -754,6 +801,9 @@ const TestResultPage = () => {
                       <h4 className="font-semibold text-yellow-800">フィードバック</h4>
                     </div>
                     <p className="text-yellow-700 whitespace-pre-line">{resultData.results[currentQuestion].feedback}</p>
+                    {resultData.results[currentQuestion].feedbackIsFallback && (
+                      <p className="mt-2 text-xs text-gray-500">※ AI解説を取得できなかったため、定型の解説を表示しています。</p>
+                    )}
                   </div>
                 </div>
               )}
