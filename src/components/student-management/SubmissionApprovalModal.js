@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { 
   getStudentSubmissions, 
   downloadSubmission, 
-  approveSubmission 
+  approveSubmission,
+  resubmitSubmission
 } from '../../utils/api';
+import { formatDatabaseTime } from '../../utils/dateUtils';
 
 const SubmissionApprovalModal = ({ 
   isOpen, 
@@ -14,11 +16,13 @@ const SubmissionApprovalModal = ({
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [approving, setApproving] = useState(false);
+  const [resubmitting, setResubmitting] = useState(false);
+  const [resubmittedIds, setResubmittedIds] = useState(new Set());
   const [error, setError] = useState(null);
   const [selectedSubmission, setSelectedSubmission] = useState(null);
   const [comment, setComment] = useState('');
 
-  // 学生の提出物一覧を取得
+  // 利用者の提出物一覧を取得
   const fetchSubmissions = async () => {
     if (!student) return;
     
@@ -126,6 +130,37 @@ const SubmissionApprovalModal = ({
     }
   };
 
+  // 提出物再提出処理
+  const handleResubmitSubmission = async (submission) => {
+    if (!window.confirm(`${submission.lesson_name}の提出物を再提出待ちの状態にしますか？\nファイルは削除されず、フラグのみ変更されます。`)) {
+      return;
+    }
+
+    setResubmitting(true);
+    setError(null);
+
+    try {
+      const response = await resubmitSubmission(submission.submission_id);
+      
+      if (response.success) {
+        // 再提出成功後、その提出物IDを記録（ボタン表記を変更）
+        setResubmittedIds(prev => new Set([...prev, submission.submission_id]));
+        // リストを更新
+        await fetchSubmissions();
+        // 親コンポーネントに通知
+        onApprovalSuccess && onApprovalSuccess();
+        alert('再提出待ちの状態に変更しました');
+      } else {
+        setError(response.message || '再提出処理に失敗しました');
+      }
+    } catch (error) {
+      console.error('提出物再提出エラー:', error);
+      setError('再提出処理中にエラーが発生しました');
+    } finally {
+      setResubmitting(false);
+    }
+  };
+
   // ファイルサイズをフォーマット
   const formatFileSize = (bytes) => {
     if (bytes === 0) return '0 Bytes';
@@ -135,21 +170,19 @@ const SubmissionApprovalModal = ({
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  // 日付をフォーマット（データベースの時間データをそのまま表示）
+  // 日付をフォーマット（UTCを日本時間に変換して表示）
   const formatDate = (dateString) => {
     if (!dateString) return '';
     
-    // データベースから取得した日本時間の値をそのまま表示
-    // 例: "2025-09-08 13:52:16" -> "2025/09/08 13:52:16"
-    // 例: "2025-09-08T13:52:16.000Z" -> "2025/09/08 13:52:16"
-    // タイムゾーン変換を避けるため、文字列として直接フォーマット
-    let formatted = dateString
-      .replace(/-/g, '/')           // ハイフンをスラッシュに変換
-      .replace('T', ' ')            // Tをスペースに変換
-      .replace(/\.\d{3}Z?$/, '')    // .000Z または .000 を削除
-      .replace(/\s+/g, ' ');        // 複数のスペースを1つに統一
-    
-    return formatted;
+    // formatDatabaseTimeを使用してUTCを日本時間に変換
+    return formatDatabaseTime(dateString, {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    }).replace(/-/g, '/');
   };
 
   // モーダルが開かれた時にデータを取得
@@ -262,7 +295,7 @@ const SubmissionApprovalModal = ({
                         <button
                           onClick={() => handleDownload(submission)}
                           className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition-colors"
-                          disabled={approving}
+                          disabled={approving || resubmitting}
                         >
                           ダウンロード
                         </button>
@@ -271,11 +304,23 @@ const SubmissionApprovalModal = ({
                           <button
                             onClick={() => handleApproveSubmission(submission)}
                             className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700 transition-colors"
-                            disabled={approving}
+                            disabled={approving || resubmitting}
                           >
                             {approving ? '承認中...' : '承認'}
                           </button>
                         )}
+
+                        <button
+                          onClick={() => handleResubmitSubmission(submission)}
+                          className={`px-3 py-1 rounded text-sm transition-colors ${
+                            resubmittedIds.has(submission.submission_id)
+                              ? 'bg-orange-600 text-white hover:bg-orange-700'
+                              : 'bg-red-600 text-white hover:bg-red-700'
+                          }`}
+                          disabled={approving || resubmitting}
+                        >
+                          {resubmitting ? '処理中...' : resubmittedIds.has(submission.submission_id) ? '課題再提出' : '再提出'}
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -306,7 +351,7 @@ const SubmissionApprovalModal = ({
           <button
             onClick={onClose}
             className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
-            disabled={approving}
+            disabled={approving || resubmitting}
           >
             閉じる
           </button>

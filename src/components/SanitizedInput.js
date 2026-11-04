@@ -119,10 +119,13 @@ const SanitizedInput = ({
     </div>
   );
 
+  // textareaの場合はtextarea要素を、それ以外はinput要素をレンダリング
+  const InputElement = type === 'textarea' ? 'textarea' : 'input';
+
   return (
     <div className="relative">
-      <input
-        type={type}
+      <InputElement
+        type={type === 'textarea' ? undefined : type}
         value={internalValue}
         onChange={handleChange}
         onBlur={handleBlur}

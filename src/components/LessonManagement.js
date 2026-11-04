@@ -1,10 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiGet, apiPost, apiPut, apiDelete, apiCall, apiDownloadBinary } from '../utils/api';
-
-const API_BASE_URL = process.env.REACT_APP_API_URL || 
-  (window.location.hostname === 'studysphere.ayatori-inc.co.jp' 
-    ? 'https://backend.studysphere.ayatori-inc.co.jp' 
-    : 'http://localhost:5050');
+import { API_BASE_URL } from '../config/apiConfig';
 
 const LessonManagement = () => {
   const [lessons, setLessons] = useState([]);
@@ -41,6 +37,7 @@ const LessonManagement = () => {
   const [selectedLessonFiles, setSelectedLessonFiles] = useState(null);
   const [fileListLoading, setFileListLoading] = useState(false);
   const [updateFile, setUpdateFile] = useState(false);
+  const [createLessonValidationError, setCreateLessonValidationError] = useState(null);
   
   // 複数テキストファイルアップロード用の状態
   const [additionalTextFiles, setAdditionalTextFiles] = useState([]);
@@ -202,6 +199,8 @@ const LessonManagement = () => {
       const uploadPromises = additionalTextFiles.map(async (file, index) => {
         const formData = new FormData();
         formData.append('file', file);
+        // ファイル名を明示的に送信（文字化け対策）
+        formData.append('fileName', file.name);
         formData.append('lessonId', selectedLessonForMultiText.id);
         formData.append('order', index);
 
@@ -214,7 +213,21 @@ const LessonManagement = () => {
         });
 
         if (!response.ok) {
-          throw new Error(`ファイル ${file.name} のアップロードに失敗しました`);
+          // エラーレスポンスの詳細を取得
+          let errorMessage = `ファイル ${file.name} のアップロードに失敗しました`;
+          try {
+            const errorData = await response.json();
+            if (errorData.message) {
+              errorMessage = `${errorMessage}: ${errorData.message}`;
+            }
+            if (errorData.error && process.env.NODE_ENV === 'development') {
+              errorMessage += ` (詳細: ${errorData.error})`;
+            }
+          } catch (e) {
+            // JSONの解析に失敗した場合はデフォルトメッセージを使用
+            errorMessage += ` (ステータス: ${response.status})`;
+          }
+          throw new Error(errorMessage);
         }
 
         return await response.json();
@@ -417,6 +430,11 @@ const LessonManagement = () => {
   // レッスン作成
   const handleCreateLesson = async (e) => {
     e.preventDefault();
+    setCreateLessonValidationError(null);
+    if (!file) {
+      setCreateLessonValidationError('テキストファイル（PDF、MD、TXT、RTF）を選択してください。');
+      return;
+    }
     try {
       const formDataToSend = new FormData();
       Object.keys(formData).forEach(key => {
@@ -514,6 +532,9 @@ const LessonManagement = () => {
         if (key === 'videos') {
           // 動画データはJSON文字列として送信
           formDataToSend.append(key, JSON.stringify(value));
+        } else if (key === 'has_assignment') {
+          // has_assignmentはbooleanを明示的に文字列として送信
+          formDataToSend.append(key, Boolean(value) ? 'true' : 'false');
         } else {
           formDataToSend.append(key, value === undefined ? null : value);
         }
@@ -1042,7 +1063,7 @@ const LessonManagement = () => {
         description: lesson.description || '',
         duration: lesson.duration || '120分',
         order_index: lesson.order_index || 0,
-        has_assignment: lesson.has_assignment || false,
+        has_assignment: Boolean(lesson.has_assignment),
         course_id: lesson.course_id,
         videos: videos
       });
@@ -1059,6 +1080,7 @@ const LessonManagement = () => {
   const closeModals = () => {
     setShowCreateModal(false);
     setShowEditModal(false);
+    setCreateLessonValidationError(null);
     setShowFileListModal(false);
     setShowVideoManagementModal(false);
     setShowVideoFormModal(false);
@@ -1240,18 +1262,18 @@ const LessonManagement = () => {
                      </td>
                                            <td className="px-4 py-3">
                         {lesson.s3_key ? (
-                          <div className="flex gap-2">
+                          <div className="flex flex-col gap-2">
                             <button
                               onClick={() => handleShowFileList(lesson.id)}
-                              className="text-blue-600 hover:text-blue-800 font-medium"
+                              className="text-blue-600 hover:text-blue-800 font-medium whitespace-nowrap text-left px-2 py-1 rounded hover:bg-blue-50 transition-colors"
                             >
                               📋 ファイル一覧
                             </button>
                             <button
                               onClick={() => handleDownloadFolder(lesson.id)}
-                              className="text-green-600 hover:text-green-800 font-medium"
+                              className="text-green-600 hover:text-green-800 font-medium whitespace-nowrap text-left px-2 py-1 rounded hover:bg-green-50 transition-colors"
                             >
-                              📁 フォルダ
+                              テキスト一括DL
                             </button>
                           </div>
                         ) : (
@@ -1260,16 +1282,16 @@ const LessonManagement = () => {
                       </td>
                      <td className="px-4 py-3">
                        <div className="flex flex-col gap-1">
-                         <div className="flex gap-2">
+                         <div className="flex flex-col gap-2">
                            <button
                              onClick={() => handleOpenVideoManagement(lesson)}
-                             className="text-blue-600 hover:text-blue-800 font-medium"
+                             className="text-blue-600 hover:text-blue-800 font-medium whitespace-nowrap text-left px-2 py-1 rounded hover:bg-blue-50 transition-colors"
                            >
                              🎥 動画管理・視聴
                            </button>
                            <button
                              onClick={() => handleOpenTextVideoLinkModal(lesson)}
-                             className="text-green-600 hover:text-green-800 font-medium"
+                             className="text-green-600 hover:text-green-800 font-medium whitespace-nowrap text-left px-2 py-1 rounded hover:bg-green-50 transition-colors"
                            >
                              🔗 テキスト・動画紐づけ
                            </button>
@@ -1328,8 +1350,8 @@ const LessonManagement = () => {
                   {/* 左カラム: 基本情報 */}
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        コース *
+                      <label className="block text-sm font-medium text-gray-700 mb-2 required-asterisk">
+                        コース
                       </label>
                       <select
                         name="course_id"
@@ -1362,8 +1384,8 @@ const LessonManagement = () => {
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        レッスン名 *
+                      <label className="block text-sm font-medium text-gray-700 mb-2 required-asterisk">
+                        レッスン名
                       </label>
                       <input
                         type="text"
@@ -1432,12 +1454,15 @@ const LessonManagement = () => {
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        ファイル（PDF、MD、TXT、RTF）
+                      <label className="block text-sm font-medium text-gray-700 mb-2 required-asterisk">
+                        テキスト（PDF、MD、TXT、RTF）
                       </label>
+                      {createLessonValidationError && (
+                        <p className="text-sm text-red-600 mb-2">{createLessonValidationError}</p>
+                      )}
                       <input
                         type="file"
-                        onChange={handleFileChange}
+                        onChange={(e) => { handleFileChange(e); setCreateLessonValidationError(null); }}
                         accept=".pdf,.md,.txt,.rtf"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
@@ -1581,15 +1606,15 @@ const LessonManagement = () => {
                   {/* 左カラム: 基本情報 */}
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        コース *
+                      <label className="block text-sm font-medium text-gray-500 mb-2">
+                        コース
                       </label>
                       <select
                         name="course_id"
                         value={formData.course_id}
-                        onChange={handleInputChange}
+                        disabled
                         required
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
                       >
                         {courses.map(course => (
                           <option key={course.id} value={course.id}>
@@ -1597,11 +1622,12 @@ const LessonManagement = () => {
                           </option>
                         ))}
                       </select>
+                      <p className="text-xs text-gray-500 mt-1">編集時はコースの変更はできません</p>
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        レッスン名 *
+                      <label className="block text-sm font-medium text-gray-700 mb-2 required-asterisk">
+                        レッスン名
                       </label>
                       <input
                         type="text"
@@ -2104,8 +2130,8 @@ const LessonManagement = () => {
             <div className="flex-1 overflow-y-auto p-6">
               <form id={editingVideo ? 'updateVideoForm' : 'createVideoForm'} onSubmit={editingVideo ? handleUpdateVideo : handleCreateVideo}>
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    タイトル *
+                  <label className="block text-sm font-medium text-gray-700 mb-2 required-asterisk">
+                    タイトル
                   </label>
                   <input
                     type="text"
@@ -2129,8 +2155,8 @@ const LessonManagement = () => {
                   />
                 </div>
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    YouTube動画URL *
+                  <label className="block text-sm font-medium text-gray-700 mb-2 required-asterisk">
+                    YouTube動画URL
                   </label>
                   <input
                     type="url"
@@ -2294,8 +2320,8 @@ const LessonManagement = () => {
             <div className="flex-1 overflow-y-auto p-6">
               <form id={editingLink ? 'updateLinkForm' : 'createLinkForm'} onSubmit={editingLink ? handleUpdateTextVideoLink : handleCreateTextVideoLink}>
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    テキストファイル *
+                  <label className="block text-sm font-medium text-gray-700 mb-2 required-asterisk">
+                    テキストファイル
                   </label>
                   <select
                     name="text_file_key"
@@ -2313,8 +2339,8 @@ const LessonManagement = () => {
                   </select>
                 </div>
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    動画 *
+                  <label className="block text-sm font-medium text-gray-700 mb-2 required-asterisk">
+                    動画
                   </label>
                   <select
                     name="video_id"
@@ -2515,12 +2541,12 @@ const LessonManagement = () => {
                     <input
                       type="file"
                       multiple
-                      accept=".pdf,.txt,.md,.docx,.pptx"
+                      accept=".pdf,.txt,.md,.rtf"
                       onChange={handleMultiTextFileChange}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                     />
                     <p className="text-xs text-gray-500 mt-1">
-                      PDF、テキスト、Markdown、Word、PowerPointファイルを選択できます
+                      PDF、テキスト、Markdown、RTFファイルを選択できます
                     </p>
                   </div>
 

@@ -32,7 +32,40 @@ const UserFilter = ({
                 : '/api/messages/instructors-for-filter';
             
             // 現在選択中の拠点IDを取得して追加
-            const currentSatelliteId = getCurrentUserSatelliteId(currentUser);
+            let currentSatelliteId = getCurrentUserSatelliteId(currentUser);
+            
+            // 拠点IDが取得できない場合、セッションストレージから直接取得を試みる
+            if (!currentSatelliteId) {
+                try {
+                    const sessionSelectedSatellite = sessionStorage.getItem('selectedSatellite');
+                    if (sessionSelectedSatellite) {
+                        const satelliteData = JSON.parse(sessionSelectedSatellite);
+                        if (satelliteData && satelliteData.id) {
+                            currentSatelliteId = parseInt(satelliteData.id);
+                            console.log('UserFilter: セッションストレージから拠点IDを取得:', currentSatelliteId);
+                        }
+                    }
+                } catch (error) {
+                    console.error('UserFilter: セッションストレージからの拠点ID取得エラー:', error);
+                }
+            }
+            
+            // まだ取得できていない場合、ユーザーの所属拠点から最初の拠点を使用
+            if (!currentSatelliteId && currentUser && currentUser.satellite_ids) {
+                try {
+                    let satelliteIds = currentUser.satellite_ids;
+                    if (typeof satelliteIds === 'string') {
+                        satelliteIds = JSON.parse(satelliteIds);
+                    }
+                    if (Array.isArray(satelliteIds) && satelliteIds.length > 0) {
+                        currentSatelliteId = parseInt(satelliteIds[0]);
+                        console.log('UserFilter: ユーザーの所属拠点から最初の拠点IDを使用:', currentSatelliteId);
+                    }
+                } catch (error) {
+                    console.error('UserFilter: ユーザーの所属拠点からの取得エラー:', error);
+                }
+            }
+            
             const queryParams = new URLSearchParams();
             if (currentSatelliteId) {
                 queryParams.append('satellite_id', currentSatelliteId);
@@ -56,7 +89,40 @@ const UserFilter = ({
             const queryParams = new URLSearchParams();
             
             // 現在選択中の拠点IDを取得して追加
-            const currentSatelliteId = getCurrentUserSatelliteId(currentUser);
+            let currentSatelliteId = getCurrentUserSatelliteId(currentUser);
+            
+            // 拠点IDが取得できない場合、セッションストレージから直接取得を試みる
+            if (!currentSatelliteId) {
+                try {
+                    const sessionSelectedSatellite = sessionStorage.getItem('selectedSatellite');
+                    if (sessionSelectedSatellite) {
+                        const satelliteData = JSON.parse(sessionSelectedSatellite);
+                        if (satelliteData && satelliteData.id) {
+                            currentSatelliteId = parseInt(satelliteData.id);
+                            console.log('UserFilter: セッションストレージから拠点IDを取得:', currentSatelliteId);
+                        }
+                    }
+                } catch (error) {
+                    console.error('UserFilter: セッションストレージからの拠点ID取得エラー:', error);
+                }
+            }
+            
+            // まだ取得できていない場合、ユーザーの所属拠点から最初の拠点を使用
+            if (!currentSatelliteId && currentUser && currentUser.satellite_ids) {
+                try {
+                    let satelliteIds = currentUser.satellite_ids;
+                    if (typeof satelliteIds === 'string') {
+                        satelliteIds = JSON.parse(satelliteIds);
+                    }
+                    if (Array.isArray(satelliteIds) && satelliteIds.length > 0) {
+                        currentSatelliteId = parseInt(satelliteIds[0]);
+                        console.log('UserFilter: ユーザーの所属拠点から最初の拠点IDを使用:', currentSatelliteId);
+                    }
+                } catch (error) {
+                    console.error('UserFilter: ユーザーの所属拠点からの取得エラー:', error);
+                }
+            }
+            
             if (currentSatelliteId) {
                 queryParams.append('satellite_id', currentSatelliteId);
             }
@@ -130,11 +196,11 @@ const UserFilter = ({
         if (showInstructorFilter) {
             fetchInstructors();
         }
-    }, [showInstructorFilter]);
+    }, [showInstructorFilter, currentUser]);
 
     useEffect(() => {
         fetchUsers();
-    }, [filters, selectedInstructors, apiEndpoint]);
+    }, [filters, selectedInstructors, apiEndpoint, currentUser]);
 
     return (
         <div className={`space-y-3 ${className}`}>

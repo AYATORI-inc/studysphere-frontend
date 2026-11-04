@@ -3,6 +3,8 @@ import { apiGet, apiPost } from '../utils/api';
 import { useAuth } from './contexts/AuthContext';
 import UserFilter from './UserFilter';
 import { sanitizeInput } from '../utils/sanitizeUtils';
+import { getCurrentUserSatelliteId } from '../utils/locationUtils';
+import { getCurrentUser } from '../utils/userContext';
 
 const MessageSender = () => {
     const { currentUser: user } = useAuth();
@@ -29,10 +31,33 @@ const MessageSender = () => {
 
         try {
             setSubmitting(true);
-            const response = await apiPost('/api/messages/send', {
+            
+            // 現在選択中の拠点IDを取得
+            const currentUser = getCurrentUser();
+            const currentSatelliteId = getCurrentUserSatelliteId(currentUser);
+            
+            console.log('メッセージ送信 - デバッグ情報:', {
+                currentUser,
+                currentSatelliteId,
+                selectedStudent: selectedStudent.id
+            });
+            
+            const requestData = {
                 receiver_id: selectedStudent.id,
                 message: sanitizeInput(message.trim())
-            });
+            };
+            
+            // 現在選択中の拠点IDがある場合は追加
+            if (currentSatelliteId) {
+                requestData.satellite_id = currentSatelliteId;
+                console.log('メッセージ送信 - satellite_idを追加:', currentSatelliteId);
+            } else {
+                console.warn('メッセージ送信 - satellite_idが取得できませんでした');
+            }
+            
+            console.log('メッセージ送信 - リクエストデータ:', requestData);
+            
+            const response = await apiPost('/api/messages/send', requestData);
 
             if (response.success) {
                 alert('メッセージを送信しました。');
@@ -60,8 +85,8 @@ const MessageSender = () => {
                 {/* 利用者選択 */}
                 <div>
                     <div className="flex justify-between items-center mb-2">
-                        <label className="block text-sm font-medium text-gray-700">
-                            送信先利用者 *
+                        <label className="block text-sm font-medium text-gray-700 required-asterisk">
+                            送信先利用者
                         </label>
                         <button
                             type="button"
@@ -138,8 +163,8 @@ const MessageSender = () => {
 
                 {/* メッセージ入力 */}
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                        メッセージ *
+                    <label className="block text-sm font-medium text-gray-700 mb-2 required-asterisk">
+                        メッセージ
                     </label>
                     <textarea
                         value={message}

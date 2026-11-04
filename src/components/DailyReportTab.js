@@ -409,7 +409,7 @@ const DailyReportTab = ({ student, reports = [], onSave, onEdit, onDelete, onDow
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">作業実績 *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2 required-asterisk">作業実績</label>
                   <textarea
                     value={editingReport.actualWork}
                     onChange={(e) => setEditingReport(prev => ({ ...prev, actualWork: e.target.value }))}
@@ -421,7 +421,7 @@ const DailyReportTab = ({ student, reports = [], onSave, onEdit, onDelete, onDow
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">感想・次回目標 *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2 required-asterisk">感想・次回目標</label>
                   <textarea
                     value={editingReport.thoughts}
                     onChange={(e) => setEditingReport(prev => ({ ...prev, thoughts: e.target.value }))}

@@ -1,15 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { formatUTCToJapanTimeString } from '../../utils/dateUtils';
-
-const API_BASE_URL = process.env.REACT_APP_API_URL || 
-  (window.location.hostname === 'studysphere.ayatori-inc.co.jp' 
-    ? 'https://backend.studysphere.ayatori-inc.co.jp' 
-    : 'http://localhost:5050');
+import { API_BASE_URL } from '../../config/apiConfig';
 
 const UserDetailModal = ({ isOpen, onClose, selectedUser }) => {
   const [captureRecords, setCaptureRecords] = useState({ photos: [], screenshots: [] });
   const [loading, setLoading] = useState(false);
   const [startTime, setStartTime] = useState(null);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(-1);
 
   // S3から画像データを取得
   const fetchCaptureRecords = async () => {
@@ -63,6 +61,63 @@ const UserDetailModal = ({ isOpen, onClose, selectedUser }) => {
     
     return allImages;
   };
+
+  // 画像をクリックしたときのハンドラー
+  const handleImageClick = (image, index) => {
+    setSelectedImage(image);
+    setSelectedImageIndex(index);
+  };
+
+  // 拡大表示モーダルを閉じる
+  const handleCloseImageModal = () => {
+    setSelectedImage(null);
+    setSelectedImageIndex(-1);
+  };
+
+  // 前の画像に移動
+  const handlePreviousImage = () => {
+    const allImages = getAllImagesSorted();
+    if (selectedImageIndex > 0) {
+      const newIndex = selectedImageIndex - 1;
+      setSelectedImage(allImages[newIndex]);
+      setSelectedImageIndex(newIndex);
+    }
+  };
+
+  // 次の画像に移動
+  const handleNextImage = () => {
+    const allImages = getAllImagesSorted();
+    if (selectedImageIndex < allImages.length - 1) {
+      const newIndex = selectedImageIndex + 1;
+      setSelectedImage(allImages[newIndex]);
+      setSelectedImageIndex(newIndex);
+    }
+  };
+
+  // キーボードイベントハンドラー
+  useEffect(() => {
+    if (!selectedImage) return;
+
+    const allImages = getAllImagesSorted();
+    
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setSelectedImage(null);
+        setSelectedImageIndex(-1);
+      } else if (e.key === 'ArrowLeft' && selectedImageIndex > 0) {
+        const newIndex = selectedImageIndex - 1;
+        setSelectedImage(allImages[newIndex]);
+        setSelectedImageIndex(newIndex);
+      } else if (e.key === 'ArrowRight' && selectedImageIndex < allImages.length - 1) {
+        const newIndex = selectedImageIndex + 1;
+        setSelectedImage(allImages[newIndex]);
+        setSelectedImageIndex(newIndex);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedImage, selectedImageIndex, captureRecords]);
 
   if (!isOpen || !selectedUser) return null;
 
@@ -187,7 +242,10 @@ const UserDetailModal = ({ isOpen, onClose, selectedUser }) => {
                         </div>
                         <span className="text-xs text-gray-500">{timeString}</span>
                       </div>
-                      <div className="rounded-lg h-24 flex items-center justify-center mb-2 overflow-hidden bg-gray-100">
+                      <div 
+                        className="rounded-lg h-24 flex items-center justify-center mb-2 overflow-hidden bg-gray-100 cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => handleImageClick(image, index)}
+                      >
                         <img 
                           src={image.url} 
                           alt={image.type === 'camera' ? 'カメラ画像' : 'スクリーンショット'}
@@ -218,6 +276,95 @@ const UserDetailModal = ({ isOpen, onClose, selectedUser }) => {
           </div>
         </div>
       </div>
+
+      {/* 画像拡大表示モーダル */}
+      {selectedImage && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-[60]"
+          onClick={handleCloseImageModal}
+        >
+          {/* 閉じるボタン - 画面全体に対して固定位置 */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleCloseImageModal();
+            }}
+            className="fixed top-4 right-4 text-white hover:text-red-300 hover:bg-red-600 text-5xl font-bold z-20 bg-red-500 bg-opacity-90 rounded-full w-16 h-16 flex items-center justify-center shadow-2xl border-2 border-white hover:scale-110 transition-all duration-200 leading-none"
+            title="閉じる (ESC)"
+            style={{ lineHeight: '1' }}
+          >
+            ×
+          </button>
+
+          {/* 前の画像ボタン - 画面全体に対して固定位置 */}
+          {selectedImageIndex > 0 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handlePreviousImage();
+              }}
+              className="fixed left-4 top-1/2 transform -translate-y-1/2 text-white hover:text-gray-300 text-4xl font-bold z-10 bg-black bg-opacity-50 rounded-full w-12 h-12 flex items-center justify-center hover:bg-opacity-70 transition-all"
+            >
+              ‹
+            </button>
+          )}
+
+          {/* 次の画像ボタン - 画面全体に対して固定位置 */}
+          {selectedImageIndex < getAllImagesSorted().length - 1 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleNextImage();
+              }}
+              className="fixed right-4 top-1/2 transform -translate-y-1/2 text-white hover:text-gray-300 text-4xl font-bold z-10 bg-black bg-opacity-50 rounded-full w-12 h-12 flex items-center justify-center hover:bg-opacity-70 transition-all"
+            >
+              ›
+            </button>
+          )}
+
+          <div 
+            className="relative max-w-[90vw] max-h-[90vh] flex items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+
+            {/* 画像情報 */}
+            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 text-white bg-black bg-opacity-50 rounded-lg px-4 py-2 z-10">
+              <div className="flex items-center gap-2 mb-1">
+                <span className={selectedImage.type === 'camera' ? 'text-orange-400' : 'text-blue-400'}>
+                  {selectedImage.type === 'camera' ? '📷' : '🖥️'}
+                </span>
+                <span className="font-medium">
+                  {selectedImage.type === 'camera' ? 'カメラ' : 'デスクトップ'}
+                </span>
+                <span className="text-gray-300">
+                  {new Date(selectedImage.lastModified).toLocaleString('ja-JP', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    timeZone: 'Asia/Tokyo'
+                  })}
+                </span>
+              </div>
+              <div className="text-sm text-gray-300 text-center">
+                {selectedImageIndex + 1} / {getAllImagesSorted().length}
+              </div>
+            </div>
+
+            {/* 拡大画像 */}
+            <img
+              src={selectedImage.url}
+              alt={selectedImage.type === 'camera' ? 'カメラ画像' : 'スクリーンショット'}
+              className="max-w-full max-h-[90vh] object-contain"
+              onError={(e) => {
+                console.error('画像読み込みエラー:', selectedImage.url);
+                e.target.style.display = 'none';
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

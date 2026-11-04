@@ -19,6 +19,13 @@ const AdminManagement = () => {
   const [editingAdmin, setEditingAdmin] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // ページネーション用の状態
+  const [logPagination, setLogPagination] = useState({
+    page: 1,
+    limit: 50,
+    total: 0,
+    totalPages: 0
+  });
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -80,13 +87,15 @@ const AdminManagement = () => {
   }, [showDeleted]);
 
   // 操作ログを読み込む
-  const loadOperationLogs = async () => {
+  const loadOperationLogs = async (page = logPagination.page, limit = logPagination.limit) => {
     try {
-      const logs = await getOperationLogs();
+      const result = await getOperationLogs({ page, limit });
       const stats = await getLogStats();
-      console.log('取得した操作ログ:', logs);
+      console.log('取得した操作ログ:', result.logs);
+      console.log('取得したページネーション情報:', result.pagination);
       console.log('取得した統計情報:', stats);
-      setOperationLogs(logs);
+      setOperationLogs(result.logs);
+      setLogPagination(result.pagination);
       setLogStats(stats);
     } catch (error) {
       console.error('操作ログの読み込みに失敗しました:', error);
@@ -198,7 +207,7 @@ const AdminManagement = () => {
     }
     
     await addOperationLog(logData);
-    loadOperationLogs(); // ログを再読み込み
+    loadOperationLogs(logPagination.page, logPagination.limit); // ログを再読み込み（現在のページを維持）
   };
 
   const handleSort = (key) => {
@@ -551,8 +560,13 @@ const AdminManagement = () => {
 
   const applyLogFilters = async () => {
     try {
-      const filteredLogs = await searchOperationLogs(logFilters);
-      setOperationLogs(filteredLogs);
+      const result = await searchOperationLogs({
+        ...logFilters,
+        page: 1, // フィルター適用時は最初のページに戻る
+        limit: logPagination.limit
+      });
+      setOperationLogs(result.logs);
+      setLogPagination(result.pagination);
     } catch (error) {
       console.error('ログフィルター適用エラー:', error);
     }
@@ -565,7 +579,14 @@ const AdminManagement = () => {
       startDate: '',
       endDate: ''
     });
-    await loadOperationLogs(); // 全ログを再読み込み
+    await loadOperationLogs(1, logPagination.limit); // 全ログを再読み込み（1ページ目に戻る）
+  };
+  
+  // ページ変更ハンドラー
+  const handlePageChange = async (newPage) => {
+    if (newPage >= 1 && newPage <= logPagination.totalPages) {
+      await loadOperationLogs(newPage, logPagination.limit);
+    }
   };
 
   // ログエクスポート機能
@@ -719,7 +740,7 @@ const AdminManagement = () => {
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">ユーザ名 *</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2 required-asterisk">ユーザ名</label>
                   <input
                     type="text"
                     name="name"
@@ -731,7 +752,7 @@ const AdminManagement = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">ユーザID *</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2 required-asterisk">ユーザID</label>
                   <div className="relative">
                     <input
                       type="text"
@@ -1187,9 +1208,35 @@ const AdminManagement = () => {
               </tbody>
             </table>
           </div>
-          {operationLogs.length > 0 && (
-            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 text-sm text-gray-600">
-              表示中: {operationLogs.length}件のログ（最大100件、30日間保持）
+          {/* ページネーション */}
+          {logPagination.total > 0 && (
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
+              <div className="flex justify-between items-center">
+                <div className="text-sm text-gray-600">
+                  全{logPagination.total}件中 {((logPagination.page - 1) * logPagination.limit) + 1} - {Math.min(logPagination.page * logPagination.limit, logPagination.total)}件を表示
+                </div>
+                {logPagination.totalPages > 1 && (
+                  <div className="flex gap-2 items-center">
+                    <button
+                      onClick={() => handlePageChange(logPagination.page - 1)}
+                      disabled={logPagination.page === 1}
+                      className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-gray-300"
+                    >
+                      前へ
+                    </button>
+                    <span className="px-4 py-2 text-gray-700">
+                      {logPagination.page} / {logPagination.totalPages}
+                    </span>
+                    <button
+                      onClick={() => handlePageChange(logPagination.page + 1)}
+                      disabled={logPagination.page >= logPagination.totalPages}
+                      className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-gray-300"
+                    >
+                      次へ
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>

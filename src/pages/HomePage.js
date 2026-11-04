@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 const HomePage = () => {
   const [backgroundImage, setBackgroundImage] = useState('');
   const [characterImage, setCharacterImage] = useState('');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // ランダム背景画像の設定
   useEffect(() => {
@@ -46,6 +47,10 @@ const HomePage = () => {
                 在宅支援
                 <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-blue-400 transition-all duration-300 group-hover:w-full"></span>
               </a>
+              <a href="https://studysphere.ayatori-inc.co.jp/support-app/" className="text-white hover:text-blue-400 transition-colors font-medium relative group">
+                在宅アプリ
+                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-blue-400 transition-all duration-300 group-hover:w-full"></span>
+              </a>
               <a 
                 href="https://www.ayatori-inc.co.jp/?page_id=7" 
                 target="_blank" 
@@ -58,13 +63,50 @@ const HomePage = () => {
             </nav>
             {/* モバイルメニューボタン */}
             <div className="md:hidden">
-              <button className="text-white">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen((o) => !o)}
+                className="text-white p-2 -mr-2 rounded-lg hover:bg-white/10 transition-colors"
+                aria-label={mobileMenuOpen ? 'メニューを閉じる' : 'メニューを開く'}
+                aria-expanded={mobileMenuOpen}
+              >
+                {mobileMenuOpen ? (
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                ) : (
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                )}
               </button>
             </div>
           </div>
+        </div>
+        {/* モバイルメニュー */}
+        <div
+          className={`md:hidden absolute top-full left-0 right-0 bg-black/95 backdrop-blur-lg border-t border-white/10 overflow-hidden transition-all duration-300 ${
+            mobileMenuOpen ? 'max-h-80 opacity-100' : 'max-h-0 opacity-0'
+          }`}
+          aria-hidden={!mobileMenuOpen}
+        >
+          <nav className="flex flex-col py-4 px-4 space-y-1">
+            <a href="https://ayatori-inc.co.jp/LP-AISchool/" className="text-white py-3 px-4 rounded-lg hover:bg-white/10 transition-colors font-medium" onClick={() => setMobileMenuOpen(false)}>
+              主要機能
+            </a>
+            <a href="https://www.ayatori-inc.co.jp/StudySphere-Support/" className="text-white py-3 px-4 rounded-lg hover:bg-white/10 transition-colors font-medium" onClick={() => setMobileMenuOpen(false)}>
+              サポート
+            </a>
+            <a href="https://ayatori-inc.co.jp/LP-remote-support/" className="text-white py-3 px-4 rounded-lg hover:bg-white/10 transition-colors font-medium" onClick={() => setMobileMenuOpen(false)}>
+              在宅支援
+            </a>
+            <a href="https://studysphere.ayatori-inc.co.jp/support-app/" className="text-white py-3 px-4 rounded-lg hover:bg-white/10 transition-colors font-medium" onClick={() => setMobileMenuOpen(false)}>
+              在宅アプリ
+            </a>
+            <a href="https://www.ayatori-inc.co.jp/?page_id=7" target="_blank" rel="noopener noreferrer" className="text-white py-3 px-4 rounded-lg hover:bg-white/10 transition-colors font-medium" onClick={() => setMobileMenuOpen(false)}>
+              問い合わせ
+            </a>
+          </nav>
         </div>
       </header>
 
@@ -110,13 +152,11 @@ const HomePage = () => {
                 利用者
               </Link>
               <a
-                href="/support-app/StudySphereApp Setup 1.1.3.exe"
-                download="StudySphereApp Setup 1.1.3.exe"
+                href="https://studysphere.ayatori-inc.co.jp/support-app"
                 className="bg-white/20 text-white px-8 py-4 rounded-full hover:bg-white/30 transition-all duration-300 font-semibold text-lg border-2 border-white/30 hover:border-white/50 transform hover:-translate-y-1 hover:shadow-xl backdrop-blur-sm flex items-center gap-3"
               >
-                <span className="text-2xl">⊞</span>
-                <span className="animate-bounce">⬇</span>
-                アプリをダウンロード（v1.1.3）
+              <span className="animate-bounce">⬇</span>
+                在宅アプリダウンロードページへ
               </a>
             </div>
           </div>

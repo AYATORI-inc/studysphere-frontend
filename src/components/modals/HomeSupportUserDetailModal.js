@@ -15,13 +15,33 @@ const HomeSupportUserDetailModal = ({ isOpen, onClose, student, onSave }) => {
 
   useEffect(() => {
     if (isOpen && student) {
-      // 受給者証番号を設定
-      setRecipientNumber(student.recipient_number || '');
-      
-      // 個別支援計画を取得
+      // 別の利用者を開いたときに前のデータが残らないよう、いったん空でリセット
+      setSupportPlan({
+        long_term_goal: '',
+        short_term_goal: '',
+        needs: '',
+        support_content: '',
+        goal_date: ''
+      });
+      // 受給者証番号を設定（APIが snake_case / camelCase のどちらでも受け取れるように）
+      setRecipientNumber(student.recipient_number ?? student.recipientNumber ?? '');
+
+      // 個別支援計画を取得（あれば上書き、404の場合は空のまま）
       fetchSupportPlan();
     }
   }, [isOpen, student]);
+
+  // DBの日付を <input type="date"> 用の YYYY-MM-DD に正規化
+  const formatGoalDateForInput = (value) => {
+    if (value == null || value === '') return '';
+    if (typeof value === 'string') {
+      if (value.includes('T')) return value.slice(0, 10); // ISO の場合は日付部分のみ
+      if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+      return value;
+    }
+    if (value instanceof Date) return value.toISOString().slice(0, 10);
+    return String(value).slice(0, 10);
+  };
 
   const fetchSupportPlan = async () => {
     if (!student?.id) return;
@@ -30,12 +50,13 @@ const HomeSupportUserDetailModal = ({ isOpen, onClose, student, onSave }) => {
     try {
       const response = await getSupportPlan(student.id);
       if (response.success && response.data) {
+        const data = response.data;
         setSupportPlan({
-          long_term_goal: response.data.long_term_goal || '',
-          short_term_goal: response.data.short_term_goal || '',
-          needs: response.data.needs || '',
-          support_content: response.data.support_content || '',
-          goal_date: response.data.goal_date || ''
+          long_term_goal: data.long_term_goal || '',
+          short_term_goal: data.short_term_goal || '',
+          needs: data.needs || '',
+          support_content: data.support_content || '',
+          goal_date: formatGoalDateForInput(data.goal_date)
         });
       }
     } catch (error) {
@@ -47,11 +68,19 @@ const HomeSupportUserDetailModal = ({ isOpen, onClose, student, onSave }) => {
 
   const handleSave = async () => {
     if (!student?.id) return;
-    
+
+    // 目標達成予定日は必須
+    const goalDateValue = (supportPlan.goal_date || '').trim();
+    if (!goalDateValue) {
+      alert('目標達成予定日が入力されていません');
+      return;
+    }
+
     setSaving(true);
     try {
       // 受給者証番号を更新
-      if (recipientNumber !== (student.recipient_number || '')) {
+      const currentRecipient = student.recipient_number ?? student.recipientNumber ?? '';
+      if (recipientNumber !== currentRecipient) {
         await updateRecipientNumber(student.id, recipientNumber);
       }
 
@@ -66,7 +95,8 @@ const HomeSupportUserDetailModal = ({ isOpen, onClose, student, onSave }) => {
       onClose();
     } catch (error) {
       console.error('保存エラー:', error);
-      alert('保存に失敗しました');
+      const message = error.response?.data?.message || error.message || '保存に失敗しました';
+      alert(message);
     } finally {
       setSaving(false);
     }

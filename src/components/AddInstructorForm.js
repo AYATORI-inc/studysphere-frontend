@@ -69,13 +69,13 @@ const AddInstructorForm = ({ onSubmit, onCancel, loading }) => {
           
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                名前 *
+              <label className="block text-sm font-medium text-gray-700 mb-1 required-asterisk">
+                名前
               </label>
               <SanitizedInput
                 type="text"
                 value={formData.name}
-                onChange={(value) => handleChange('name', value)}
+                onChange={(e) => handleChange('name', e.target.value)}
                 className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                   errors.name ? 'border-red-500' : 'border-gray-300'
                 }`}
@@ -87,13 +87,13 @@ const AddInstructorForm = ({ onSubmit, onCancel, loading }) => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                ユーザー名 *
+              <label className="block text-sm font-medium text-gray-700 mb-1 required-asterisk">
+                ユーザー名
               </label>
               <SanitizedInput
                 type="text"
                 value={formData.username}
-                onChange={(value) => handleChange('username', value)}
+                onChange={(e) => handleChange('username', e.target.value)}
                 className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                   errors.username ? 'border-red-500' : 'border-gray-300'
                 }`}
@@ -111,7 +111,7 @@ const AddInstructorForm = ({ onSubmit, onCancel, loading }) => {
               <SanitizedInput
                 type="email"
                 value={formData.email}
-                onChange={(value) => handleChange('email', value)}
+                onChange={(e) => handleChange('email', e.target.value)}
                 className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                   errors.email ? 'border-red-500' : 'border-gray-300'
                 }`}
@@ -129,15 +129,15 @@ const AddInstructorForm = ({ onSubmit, onCancel, loading }) => {
                <SanitizedInput
                  type="text"
                  value={formData.specialization}
-                 onChange={(value) => handleChange('specialization', value)}
+                 onChange={(e) => handleChange('specialization', e.target.value)}
                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                  placeholder="専門分野"
                />
              </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                パスワード *
+              <label className="block text-sm font-medium text-gray-700 mb-1 required-asterisk">
+                パスワード
               </label>
               <input
                 type="password"

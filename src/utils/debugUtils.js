@@ -51,7 +51,7 @@ export const debugLocalStorage = () => {
   
   allKeys.forEach(key => {
     if (key !== 'currentUser') {
-      console.log(`${key}:`, localStorage.getItem(key));
+      //console.log(`${key}:`, localStorage.getItem(key));
     }
   });
 };

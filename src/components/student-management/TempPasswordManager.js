@@ -1,10 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-
-const API_BASE_URL = process.env.REACT_APP_API_URL || 
-  (window.location.hostname === 'studysphere.ayatori-inc.co.jp' 
-    ? 'https://backend.studysphere.ayatori-inc.co.jp' 
-    : 'http://localhost:5050');
+import { API_BASE_URL } from '../../config/apiConfig';
 
 const TempPasswordManager = ({ students, onStudentsUpdate }) => {
   const { currentUser, isAuthenticated } = useAuth();
@@ -93,7 +89,7 @@ const TempPasswordManager = ({ students, onStudentsUpdate }) => {
             : student
         );
         console.log('=== ローカル状態更新完了 ===');
-        console.log('更新された学生:', updatedStudents.find(s => s.id === userId));
+        console.log('更新された利用者:', updatedStudents.find(s => s.id === userId));
         return updatedStudents;
       });
       
@@ -129,42 +125,72 @@ const TempPasswordManager = ({ students, onStudentsUpdate }) => {
       
       if (response.ok) {
         const result = await response.json();
-        console.log('APIから取得した全データ:', result);
-        console.log('データの型:', typeof result);
+        //console.log('APIから取得した全データ:', result);
+        //console.log('データの型:', typeof result);
         
         // バックエンドのレスポンス形式に合わせてデータを取得
-        const data = result.data?.users || result;
-        const usersArray = Array.isArray(data) ? data : [];
+        // レスポンスが配列の場合と、オブジェクトでラップされている場合の両方に対応
+        let usersArray = [];
+        if (Array.isArray(result)) {
+          usersArray = result;
+        } else if (result.data?.users && Array.isArray(result.data.users)) {
+          usersArray = result.data.users;
+        } else if (result.data && Array.isArray(result.data)) {
+          usersArray = result.data;
+        } else if (result.users && Array.isArray(result.users)) {
+          usersArray = result.users;
+        } else {
+          console.warn('予期しないレスポンス形式:', result);
+          usersArray = [];
+        }
+        
         console.log('ユーザー配列:', usersArray);
         console.log('ユーザー配列の長さ:', usersArray.length);
         
         // 全ユーザーのロールを確認
         usersArray.forEach((user, index) => {
-          console.log(`ユーザー${index + 1}:`, {
-            id: user.id,
-            name: user.name,
-            role: user.role,
-            roleType: typeof user.role
-          });
+          if (user && typeof user === 'object' && user.id !== undefined) {
+              console.log('ユーザーデータ取得成功');
+          } else {
+            console.warn(`ユーザー${index + 1}のデータ形式が不正:`, user);
+          }
         });
         
         // ロール4（指導員）のユーザーのみをフィルタリング
+        // オブジェクトが正しい形式かも確認
         const instructors = usersArray.filter(user => {
-          const isInstructor = user.role === 4;
-          console.log(`ユーザー ${user.name} (ID: ${user.id}): ロール=${user.role}, 指導員判定=${isInstructor}`);
+          // オブジェクトが正しい形式かを確認
+          if (!user || typeof user !== 'object' || user.id === undefined) {
+            console.warn('不正なユーザーデータをスキップ:', user);
+            return false;
+          }
+          
+          // ロールが数値または文字列の数値として扱えるか確認
+          const roleValue = typeof user.role === 'string' ? parseInt(user.role, 10) : user.role;
+          const isInstructor = roleValue === 4;
+          //console.log(`ユーザー ${user.name} (ID: ${user.id}): ロール=${user.role} (${typeof user.role}), 数値化=${roleValue}, 指導員判定=${isInstructor}`);
           return isInstructor;
         });
         
         console.log('フィルタリング後の指導員データ:', instructors);
         console.log('指導員数:', instructors.length);
-        setInstructors(instructors);
+        
+        // 空の配列または有効なデータのみを設定
+        setInstructors(instructors.filter(inst => inst && inst.id !== undefined && inst.name !== undefined));
       } else {
         console.error('APIレスポンスエラー:', response.status, response.statusText);
         const errorText = await response.text();
         console.error('エラーレスポンス:', errorText);
+        setInstructors([]);
       }
     } catch (error) {
       console.error('指導員データ取得エラー:', error);
+      console.error('エラー詳細:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
+      setInstructors([]);
     }
   };
 

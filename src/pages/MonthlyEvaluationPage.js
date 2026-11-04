@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useInstructorGuard } from '../utils/hooks/useAuthGuard';
 import { apiCall } from '../utils/api';
 import { getSupportPlanByUserId } from '../utils/api';
+import { normalizeSatelliteId, getCurrentUserSatelliteId } from '../utils/locationUtils';
 import MonthlyReportPrintModal from '../components/modals/MonthlyReportPrintModal';
 import ExcelJS from 'exceljs';
 
@@ -129,9 +130,28 @@ const MonthlyEvaluationPage = () => {
             }
             return userData.satellite_ids;
           })();
-          if (satelliteId) {
+
+          let normalizedSatelliteId = normalizeSatelliteId(satelliteId) ?? normalizeSatelliteId(userData.satellite_id);
+
+          if (!normalizedSatelliteId && currentUser) {
+            normalizedSatelliteId = normalizeSatelliteId(getCurrentUserSatelliteId(currentUser));
+          }
+
+          if (!normalizedSatelliteId) {
+            const savedSatellite = sessionStorage.getItem('selectedSatellite');
+            if (savedSatellite) {
+              try {
+                const parsed = JSON.parse(savedSatellite);
+                normalizedSatelliteId = normalizeSatelliteId(parsed?.id);
+              } catch (error) {
+                console.error('selectedSatelliteパースエラー:', error);
+              }
+            }
+          }
+
+          if (normalizedSatelliteId) {
             try {
-              const instructorResponse = await apiCall(`/api/users/satellite/${satelliteId}/weekly-evaluation-instructors`, {
+              const instructorResponse = await apiCall(`/api/users/satellite/${normalizedSatelliteId}/weekly-evaluation-instructors`, {
                 method: 'GET'
               });
               if (instructorResponse.success && instructorResponse.data) {
@@ -140,6 +160,8 @@ const MonthlyEvaluationPage = () => {
             } catch (error) {
               console.error('指導員リスト取得エラー:', error);
             }
+          } else {
+            console.warn('拠点IDが取得できなかったため、指導員リストを取得できませんでした');
           }
 
           // 前回評価日を取得
@@ -513,6 +535,14 @@ const MonthlyEvaluationPage = () => {
         period_end: periodEnd
       };
 
+      // 現在選択中の拠点IDを取得
+      const currentSatelliteId = getCurrentUserSatelliteId(currentUser);
+      
+      // 現在選択中の拠点IDがある場合は追加
+      if (currentSatelliteId) {
+        backendData.satellite_id = currentSatelliteId;
+      }
+
       // 送信データをログ出力（デバッグ用）
       console.log('送信データ:', JSON.stringify(backendData, null, 2));
       console.log('user_idの型:', typeof backendData.user_id, '値:', backendData.user_id);
@@ -527,7 +557,7 @@ const MonthlyEvaluationPage = () => {
         saveLocationAndNavigate();
       } else {
         // より詳細なエラーメッセージを表示
-        const errorDetails = response.error || response.message || 'エラーが発生しました';
+        const errorDetails = response.message || 'エラーが発生しました';
         console.error('保存エラー詳細 (response):', JSON.stringify(response, null, 2));
         alert('保存に失敗しました: ' + errorDetails);
       }
@@ -537,7 +567,7 @@ const MonthlyEvaluationPage = () => {
       console.error('error.response:', error.response);
       console.error('error.response?.data:', error.response?.data);
       // より詳細なエラーメッセージを表示
-      const errorMessage = error.response?.data?.error || error.response?.data?.message || error.message || '不明なエラーが発生しました';
+      const errorMessage = error.response?.data?.message || error.message || '不明なエラーが発生しました';
       console.error('表示されるエラーメッセージ:', errorMessage);
       alert('保存中にエラーが発生しました: ' + errorMessage);
     } finally {
@@ -631,7 +661,7 @@ const MonthlyEvaluationPage = () => {
         // Excelダウンロードのために画面遷移はしない
       } else {
         // より詳細なエラーメッセージを表示
-        const errorDetails = response.error || response.message || 'エラーが発生しました';
+        const errorDetails = response.message || 'エラーが発生しました';
         console.error('保存エラー詳細 (response):', JSON.stringify(response, null, 2));
         alert(`保存に失敗しましたが、Excelダウンロードを続行します: ${errorDetails}`);
       }
@@ -642,7 +672,7 @@ const MonthlyEvaluationPage = () => {
       console.error('error.response:', error.response);
       console.error('error.response?.data:', error.response?.data);
       // より詳細なエラーメッセージを表示
-      const errorMessage = error.response?.data?.error || error.response?.data?.message || error.message || '不明なエラーが発生しました';
+      const errorMessage = error.response?.data?.message || error.message || '不明なエラーが発生しました';
       console.error('表示されるエラーメッセージ:', errorMessage);
       alert(`保存中にエラーが発生しましたが、Excelダウンロードを続行します: ${errorMessage}`);
     } finally {
@@ -741,14 +771,14 @@ const MonthlyEvaluationPage = () => {
         updateCell('V6', formatTime(evaluationData.endTime));
       }
 
-      // 実施方法（evaluation_methodの値を確認）
+      // 実施方法（通所→D列、訪問→G列、その他→J列にチェック）
       const methodValue = String(evaluationData.method || '').trim();
       if (methodValue === '通所') {
         updateCell('D7', '✓');
       } else if (methodValue === '訪問') {
-        updateCell('F7', '✓');
+        updateCell('G7', '✓');
       } else if (methodValue === 'その他') {
-        updateCell('H7', '✓');
+        updateCell('J7', '✓');
         if (evaluationData.methodOther) {
           updateCell('K7', evaluationData.methodOther);
         }

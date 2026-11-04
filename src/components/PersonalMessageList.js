@@ -3,6 +3,8 @@ import { apiGet, apiPost, apiPut } from '../utils/api';
 import { formatDatabaseTime } from '../utils/dateUtils';
 import { useAuth } from './contexts/AuthContext';
 import { sanitizeInput } from '../utils/sanitizeUtils';
+import { getCurrentUser } from '../utils/userContext';
+import { getCurrentUserSatelliteId } from '../utils/locationUtils';
 
 const PersonalMessageList = ({ refreshSignal }) => {
     const { currentUser: user } = useAuth();
@@ -71,10 +73,21 @@ const PersonalMessageList = ({ refreshSignal }) => {
         if (!newMessage.trim() || !selectedConversation || !user) return;
 
         try {
-            const response = await apiPost('/api/messages/send', {
+            // 現在選択中の拠点IDを取得
+            const currentUser = getCurrentUser();
+            const currentSatelliteId = getCurrentUserSatelliteId(currentUser);
+            
+            const requestData = {
                 receiver_id: selectedConversation.other_user_id,
                 message: sanitizeInput(newMessage.trim())
-            });
+            };
+            
+            // 現在選択中の拠点IDがある場合は追加
+            if (currentSatelliteId) {
+                requestData.satellite_id = currentSatelliteId;
+            }
+            
+            const response = await apiPost('/api/messages/send', requestData);
 
             if (response.success) {
                 setNewMessage('');

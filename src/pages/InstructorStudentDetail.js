@@ -35,14 +35,14 @@ const InstructorStudentDetail = () => {
           setStudent(result.data.student);
           setProgress(result.data.progress);
         } else {
-          setError(result.message || '学生情報の取得に失敗しました');
+          setError(result.message || '利用者情報の取得に失敗しました');
         }
       } else {
-        setError('学生情報の取得に失敗しました');
+        setError('利用者情報の取得に失敗しました');
       }
     } catch (error) {
-      console.error('学生進捗取得エラー:', error);
-      setError('学生情報の取得中にエラーが発生しました');
+      console.error('利用者進捗取得エラー:', error);
+      setError('利用者情報の取得中にエラーが発生しました');
     } finally {
       setLoading(false);
     }
@@ -116,7 +116,7 @@ const InstructorStudentDetail = () => {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-cyan-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-blue-600 text-xl font-semibold">学生情報を読み込み中...</p>
+          <p className="text-blue-600 text-xl font-semibold">利用者情報を読み込み中...</p>
         </div>
       </div>
     );
@@ -153,7 +153,7 @@ const InstructorStudentDetail = () => {
                 ← ダッシュボードに戻る
               </button>
               <div>
-                <h1 className="text-2xl font-bold">学生詳細</h1>
+                <h1 className="text-2xl font-bold">利用者詳細</h1>
                 <span className="text-blue-100 text-sm">
                   {student?.name} ({student?.login_code})
                 </span>
@@ -165,9 +165,9 @@ const InstructorStudentDetail = () => {
 
       {/* コンテンツ */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* 学生情報 */}
+        {/* 利用者情報 */}
         <div className="bg-white rounded-2xl shadow-xl p-6 mb-8 border border-gray-100">
-          <h2 className="text-xl font-bold text-gray-800 mb-4">学生情報</h2>
+          <h2 className="text-xl font-bold text-gray-800 mb-4">利用者情報</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-600">名前</label>

@@ -2,11 +2,7 @@ import React, { useState, useEffect } from 'react';
 import SanitizedInput from '../SanitizedInput';
 import { useAuth } from '../contexts/AuthContext';
 import ModalErrorDisplay from '../common/ModalErrorDisplay';
-
-const API_BASE_URL = process.env.REACT_APP_API_URL || 
-  (window.location.hostname === 'studysphere.ayatori-inc.co.jp' 
-    ? 'https://backend.studysphere.ayatori-inc.co.jp' 
-    : 'http://localhost:5050');
+import { API_BASE_URL } from '../../config/apiConfig';
 
 const StudentAdder = ({ onStudentAdded, instructors }) => {
   const { currentUser } = useAuth();
@@ -227,7 +223,7 @@ const StudentAdder = ({ onStudentAdded, instructors }) => {
       console.log('送信データ:', { users: students });
              console.log('送信データの詳細:');
        students.forEach((student, index) => {
-         console.log(`学生${index + 1}:`, {
+         console.log(`利用者${index + 1}:`, {
            name: student.name,
            email: student.email,
            instructor_id: student.instructor_id,

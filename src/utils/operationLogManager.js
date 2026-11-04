@@ -168,16 +168,34 @@ export const addOperationLog = async (logDataOrAction, detailsText) => {
 
 /**
  * 操作ログを取得する
- * @returns {Array} ログ配列
+ * @param {Object} options - 取得オプション
+ * @param {number} options.page - ページ番号（デフォルト: 1）
+ * @param {number} options.limit - 1ページあたりの件数（デフォルト: 50）
+ * @param {string} options.adminName - 管理者名フィルター
+ * @param {string} options.action - 操作内容フィルター
+ * @param {string} options.startDate - 開始日フィルター
+ * @param {string} options.endDate - 終了日フィルター
+ * @returns {Object} { logs: Array, pagination: Object } ログ配列とページネーション情報
  */
-export const getOperationLogs = async () => {
+export const getOperationLogs = async (options = {}) => {
   try {
+    const { page = 1, limit = 50, adminName, action, startDate, endDate } = options;
+    
+    // クエリパラメータを構築
+    const params = new URLSearchParams();
+    params.append('page', page.toString());
+    params.append('limit', limit.toString());
+    if (adminName) params.append('adminName', adminName);
+    if (action) params.append('action', action);
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    
     // バックエンドAPIからログを取得
-    const response = await apiGet('/api/operation-logs');
+    const response = await apiGet(`/api/operation-logs?${params.toString()}`);
     console.log('バックエンドからの操作ログレスポンス:', response);
     
     if (response.success && response.data && response.data.logs) {
-      // バックエンドから取得したログをローカルストレージに保存
+      // バックエンドから取得したログを変換
       const logs = response.data.logs.map(log => ({
         id: log.id,
         adminId: log.admin_id,
@@ -189,8 +207,17 @@ export const getOperationLogs = async () => {
       }));
       
       console.log('変換後のログデータ:', logs);
-      localStorage.setItem(LOG_STORAGE_KEY, JSON.stringify(logs));
-      return logs;
+      
+      // ページネーション情報を返す
+      return {
+        logs,
+        pagination: response.data.pagination || {
+          total: logs.length,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          totalPages: 1
+        }
+      };
     } else {
       console.log('バックエンドからのレスポンスが期待形式と異なります:', response);
       // バックエンドが利用できない場合はローカルストレージから取得
@@ -198,13 +225,28 @@ export const getOperationLogs = async () => {
       if (savedLogs) {
         try {
           const parsedLogs = JSON.parse(savedLogs);
-          return Array.isArray(parsedLogs) ? parsedLogs : [];
+          const logsArray = Array.isArray(parsedLogs) ? parsedLogs : [];
+          
+          // ローカルストレージの場合はページネーションをクライアント側で実装
+          const startIndex = (page - 1) * limit;
+          const endIndex = startIndex + limit;
+          const paginatedLogs = logsArray.slice(startIndex, endIndex);
+          
+          return {
+            logs: paginatedLogs,
+            pagination: {
+              total: logsArray.length,
+              page: parseInt(page),
+              limit: parseInt(limit),
+              totalPages: Math.ceil(logsArray.length / limit)
+            }
+          };
         } catch (parseError) {
           console.error('ローカルストレージのログデータの解析に失敗:', parseError);
-          return [];
+          return { logs: [], pagination: { total: 0, page: 1, limit: parseInt(limit), totalPages: 0 } };
         }
       }
-      return [];
+      return { logs: [], pagination: { total: 0, page: 1, limit: parseInt(limit), totalPages: 0 } };
     }
   } catch (error) {
     console.error('操作ログの取得に失敗しました:', error);
@@ -214,12 +256,28 @@ export const getOperationLogs = async () => {
       const savedLogs = localStorage.getItem(LOG_STORAGE_KEY);
       if (savedLogs) {
         const parsedLogs = JSON.parse(savedLogs);
-        return Array.isArray(parsedLogs) ? parsedLogs : [];
+        const logsArray = Array.isArray(parsedLogs) ? parsedLogs : [];
+        const { page = 1, limit = 50 } = options;
+        
+        // ローカルストレージの場合はページネーションをクライアント側で実装
+        const startIndex = (page - 1) * limit;
+        const endIndex = startIndex + limit;
+        const paginatedLogs = logsArray.slice(startIndex, endIndex);
+        
+        return {
+          logs: paginatedLogs,
+          pagination: {
+            total: logsArray.length,
+            page: parseInt(page),
+            limit: parseInt(limit),
+            totalPages: Math.ceil(logsArray.length / limit)
+          }
+        };
       }
     } catch (localError) {
       console.error('ローカルログ取得にも失敗しました:', localError);
     }
-    return [];
+    return { logs: [], pagination: { total: 0, page: 1, limit: parseInt(options.limit || 50), totalPages: 0 } };
   }
 };
 
@@ -328,8 +386,8 @@ export const getLogStats = async () => {
       };
     } else {
       // バックエンドが利用できない場合はローカル計算
-      const logs = await getOperationLogs();
-      const logsArray = Array.isArray(logs) ? logs : [];
+      const result = await getOperationLogs({ page: 1, limit: 1000 }); // 統計用に全件取得
+      const logsArray = Array.isArray(result.logs) ? result.logs : [];
       const now = new Date();
       
       const stats = {
@@ -373,8 +431,8 @@ export const getLogStats = async () => {
     console.error('ログ統計の取得に失敗しました:', error);
     
     // エラー時はローカル計算
-    const logs = await getOperationLogs();
-    const logsArray = Array.isArray(logs) ? logs : [];
+    const result = await getOperationLogs({ page: 1, limit: 1000 }); // 統計用に全件取得
+    const logsArray = Array.isArray(result.logs) ? result.logs : [];
     const now = new Date();
     
     const stats = {
@@ -411,45 +469,25 @@ export const getLogStats = async () => {
  * @param {string} filters.action - 操作内容
  * @param {string} filters.startDate - 開始日
  * @param {string} filters.endDate - 終了日
- * @returns {Array} フィルタリングされたログ配列
+ * @param {number} filters.page - ページ番号（デフォルト: 1）
+ * @param {number} filters.limit - 1ページあたりの件数（デフォルト: 50）
+ * @returns {Object} { logs: Array, pagination: Object } フィルタリングされたログ配列とページネーション情報
  */
 export const searchOperationLogs = async (filters = {}) => {
   try {
-    const logs = await getOperationLogs();
-    const logsArray = Array.isArray(logs) ? logs : [];
-    
-    return logsArray.filter(log => {
-      // 管理者名フィルター
-      if (filters.adminName && !log.adminName.includes(filters.adminName)) {
-        return false;
-      }
-      
-      // 操作内容フィルター
-      if (filters.action && !log.action.includes(filters.action)) {
-        return false;
-      }
-      
-      // 日付範囲フィルター
-      if (filters.startDate || filters.endDate) {
-        const logDate = new Date(log.timestamp);
-        
-        if (filters.startDate) {
-          const startDate = new Date(filters.startDate);
-          if (logDate < startDate) return false;
-        }
-        
-        if (filters.endDate) {
-          const endDate = new Date(filters.endDate);
-          endDate.setHours(23, 59, 59, 999); // 終了日の最後の時刻に設定
-          if (logDate > endDate) return false;
-        }
-      }
-      
-      return true;
+    const { page = 1, limit = 50 } = filters;
+    // バックエンドAPIを使用して検索（ページネーション対応）
+    return await getOperationLogs({
+      page,
+      limit,
+      adminName: filters.adminName,
+      action: filters.action,
+      startDate: filters.startDate,
+      endDate: filters.endDate
     });
   } catch (error) {
     console.error('ログ検索エラー:', error);
-    return [];
+    return { logs: [], pagination: { total: 0, page: 1, limit: parseInt(filters.limit || 50), totalPages: 0 } };
   }
 };
 
@@ -458,8 +496,8 @@ export const searchOperationLogs = async (filters = {}) => {
  * @returns {string} CSVデータ
  */
 export const exportLogsToCSV = async () => {
-  const logs = await getOperationLogs();
-  const logsArray = Array.isArray(logs) ? logs : [];
+  const result = await getOperationLogs({ page: 1, limit: 10000 }); // エクスポート用に全件取得
+  const logsArray = Array.isArray(result.logs) ? result.logs : [];
   
   const headers = ['日時', '管理者名', '操作', '詳細', 'IPアドレス'];
   const csvRows = [headers.join(',')];

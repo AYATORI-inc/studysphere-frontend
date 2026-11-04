@@ -1,7 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './components/contexts/AuthContext';
-import TokenCountdown from './components/TokenCountdown';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import AdminDashboard from './pages/AdminDashboard';
@@ -9,6 +8,8 @@ import InstructorDashboard from './pages/InstructorDashboard';
 import StudentLogin from './pages/StudentLogin';
 import StudentDashboard from './pages/StudentDashboard';
 import AutoLoginPage from './pages/AutoLoginPage';
+import SSOLoginPage from './pages/SSOLoginPage';
+import SSODispatcherPage from './pages/SSODispatcherPage';
 import { EnhancedLearningPageRefactored } from './components/learning';
 import TestPage from './pages/TestPage';
 import SectionTestPage from './pages/SectionTestPage';
@@ -83,6 +84,10 @@ function App() {
             <Route path="/student/login" element={<StudentLogin />} />
             {/* 自動ログインページ（アプリからの自動ログイン用） */}
             <Route path="/auto-login/" element={<AutoLoginPage />} />
+            {/* SSOログインページ（他のサイトからStudySphereへの自動ログイン用） */}
+            <Route path="/sso-login" element={<SSOLoginPage />} />
+            {/* SSOディスパッチャーページ（StudySphere経由で他システムへ遷移する用） */}
+            <Route path="/sso-dispatch" element={<SSODispatcherPage />} />
             {/* 利用者用ダッシュボード */}
             <Route path="/student/dashboard" element={<StudentDashboard />} />
             {/* 学習画面（リファクタリング版を使用） */}
@@ -95,7 +100,7 @@ function App() {
             <Route path="/student/certificate" element={<CertificatePage />} />
             {/* 指導員用利用者詳細画面 */}
             <Route path="/instructor/student/:studentId" element={<HomeSupportUserDetailPage />} />
-            {/* 指導員用学生詳細画面（学習進捗・合否確認） */}
+            {/* 指導員用利用者詳細画面（学習進捗・合否確認） */}
             <Route path="/instructor/student-detail/:studentId" element={<InstructorStudentDetail />} />
             {/* 在宅支援：日々の記録ページ */}
             <Route path="/instructor/student/:studentId/daily-records" element={<DailyRecordsPage />} />
@@ -117,7 +122,6 @@ function App() {
             {/* 在宅支援管理：利用者詳細画面 */}
             <Route path="/instructor/student-detail/:studentId" element={<HomeSupportUserDetailPage />} />
           </Routes>
-          <TokenCountdown />
         </div>
       </AuthProvider>
     </Router>

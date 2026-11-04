@@ -7,10 +7,14 @@
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
+  # support-appディレクトリ以下はReactのリライトルールから除外
+  RewriteCond %{REQUEST_URI} !^/support-app
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
   RewriteRule ^.*$ /index.html [L]
 </IfModule>
+
+# support-appディレクトリは専用の.htaccessファイルで設定
 
 <Files "manifest.json">
     Require all granted

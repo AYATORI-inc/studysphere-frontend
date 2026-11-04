@@ -44,7 +44,7 @@ const PendingApprovalAlert = ({ satelliteId, onApprovalClick, onStudentClick }) 
     return null;
   }
 
-  // 学生ごとにグループ化
+  // 利用者ごとにグループ化
   const groupedByStudent = pendingApprovals.reduce((acc, approval) => {
     const studentId = approval.user_id;
     if (!acc[studentId]) {
@@ -110,7 +110,7 @@ const PendingApprovalAlert = ({ satelliteId, onApprovalClick, onStudentClick }) 
       </div>
       
       <div className="mt-3 text-xs text-yellow-700">
-        💡 学生名をクリックして該当者の行に移動し、合格承認ボタンから個別に承認できます
+        💡 利用者名をクリックして該当者の行に移動し、合格承認ボタンから個別に承認できます
       </div>
     </div>
   );

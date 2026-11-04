@@ -348,8 +348,8 @@ const CourseManagement = () => {
             <h2 className="text-2xl font-bold text-gray-800 mb-4">新規コース作成</h2>
             <form onSubmit={handleCreateCourse}>
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  コース名 *
+                <label className="block text-sm font-medium text-gray-700 mb-2 required-asterisk">
+                  コース名
                 </label>
                 <input
                   type="text"
@@ -373,8 +373,8 @@ const CourseManagement = () => {
                 />
               </div>
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  カテゴリ *
+                <label className="block text-sm font-medium text-gray-700 mb-2 required-asterisk">
+                  カテゴリ
                 </label>
                 <select
                   name="category"
@@ -432,8 +432,8 @@ const CourseManagement = () => {
             <h2 className="text-2xl font-bold text-gray-800 mb-4">コース編集</h2>
             <form onSubmit={handleUpdateCourse}>
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  コース名 *
+                <label className="block text-sm font-medium text-gray-700 mb-2 required-asterisk">
+                  コース名
                 </label>
                 <input
                   type="text"
@@ -457,8 +457,8 @@ const CourseManagement = () => {
                 />
               </div>
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  カテゴリ *
+                <label className="block text-sm font-medium text-gray-700 mb-2 required-asterisk">
+                  カテゴリ
                 </label>
                 <select
                   name="category"

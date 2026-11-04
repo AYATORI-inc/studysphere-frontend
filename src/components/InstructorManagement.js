@@ -1542,7 +1542,7 @@ const InstructorManagement = () => {
               
               <form onSubmit={handleAddInstructor} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">指導員名:</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">指導員名: <span className="text-red-500">*</span></label>
                 <input
                   type="text"
                   name="name"
@@ -1632,7 +1632,7 @@ const InstructorManagement = () => {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">メールアドレス:</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">メールアドレス: <span className="text-red-500">*</span></label>
                 <input
                   type="email"
                   name="email"
@@ -1644,7 +1644,7 @@ const InstructorManagement = () => {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">専門分野:</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">専門分野: <span className="text-red-500">*</span></label>
                 <input
                   type="text"
                   name="department"
@@ -1737,7 +1737,7 @@ const InstructorManagement = () => {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">初期パスワード:</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">初期パスワード: <span className="text-red-500">*</span></label>
                 <input
                   type="password"
                   name="password"
@@ -1791,7 +1791,7 @@ const InstructorManagement = () => {
             <div className="flex-1 overflow-y-auto p-6">
               <form onSubmit={handleUpdateInstructor} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">指導員名:</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">指導員名: <span className="text-red-500">*</span></label>
                 <input
                   type="text"
                   name="name"
@@ -1881,7 +1881,7 @@ const InstructorManagement = () => {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">メールアドレス:</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">メールアドレス: <span className="text-red-500">*</span></label>
                 <input
                   type="email"
                   name="email"
@@ -1893,7 +1893,7 @@ const InstructorManagement = () => {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">専門分野:</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">専門分野: <span className="text-red-500">*</span></label>
                 <input
                   type="text"
                   name="department"

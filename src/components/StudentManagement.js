@@ -49,6 +49,9 @@ const StudentManagementRefactored = ({ teacherId, onTestApproval, onSubmissionAp
   const [showCourseAssignmentModal, setShowCourseAssignmentModal] = useState(false);
   const [showCourseManagerModal, setShowCourseManagerModal] = useState(false);
 
+  // 適職診断管理画面への遷移状態
+  const [isLoadingCareerAssessment, setIsLoadingCareerAssessment] = useState(false);
+
 
   // 合格承認モーダルの状態
   const [showTestApprovalModal, setShowTestApprovalModal] = useState(false);
@@ -83,7 +86,7 @@ const StudentManagementRefactored = ({ teacherId, onTestApproval, onSubmissionAp
     }
   };
 
-  // 学生の行にスクロールする機能
+  // 利用者の行にスクロールする機能
   const scrollToStudent = (studentId) => {
     const element = document.getElementById(`student-row-${studentId}`);
     if (element) {
@@ -117,6 +120,62 @@ const StudentManagementRefactored = ({ teacherId, onTestApproval, onSubmissionAp
     fetchStudents();
   };
 
+  // 適職診断管理画面への遷移
+  const handleCareerAssessmentClick = async () => {
+    setIsLoadingCareerAssessment(true);
+    
+    try {
+      // アクセストークンを取得
+      const accessToken = localStorage.getItem('accessToken');
+      
+      if (!accessToken) {
+        alert('認証トークンが見つかりません。再度ログインしてください。');
+        setIsLoadingCareerAssessment(false);
+        return;
+      }
+
+      // SSOチケット生成APIを呼び出し
+      const response = await fetch(`${API_BASE_URL}/api/sso/ticket/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({
+          target_system: 'findjob',
+          source_system: 'studysphere',
+          context: 'career_assessment_admin'
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'SSOチケットの生成に失敗しました');
+      }
+
+      const result = await response.json();
+      
+      if (!result.success || !result.data?.ticket) {
+        throw new Error('SSOチケットの生成に失敗しました');
+      }
+
+      // 生成されたチケットを使ってfindjobのauto-loginページにリダイレクト
+      const ticket = result.data.ticket;
+      const careerAssessmentUrl = `https://findjob.myou-kou.com/auto-login?ticket=${encodeURIComponent(ticket)}`;
+      
+      // 適職診断管理画面を新しいタブで開く
+      window.open(careerAssessmentUrl, '_blank');
+      
+      // ローディング状態を解除
+      setIsLoadingCareerAssessment(false);
+      
+    } catch (error) {
+      console.error('適職診断管理画面への遷移エラー:', error);
+      alert(error.message || '適職診断管理画面への遷移に失敗しました。');
+      setIsLoadingCareerAssessment(false);
+    }
+  };
+
 
 
   // 現在の拠点IDを取得
@@ -128,30 +187,15 @@ const StudentManagementRefactored = ({ teacherId, onTestApproval, onSubmissionAp
     console.log('currentUser.satellite_ids:', currentUser?.satellite_ids);
     console.log('currentUser.satellite_name:', currentUser?.satellite_name);
     
-    // デバッグ用：ユーザー情報をAPIから取得
+    // デバッグ用：ユーザー情報のログ出力（デバッグエンドポイントは削除）
     if (currentUser && currentUser.id) {
-      fetch(`${API_BASE_URL}/api/satellites/debug/user/${currentUser.id}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
-        }
-      })
-      .then(response => response.json())
-      .then(data => {
-        console.log('=== デバッグ：APIから取得したユーザー情報 ===');
-        console.log('APIレスポンス:', data);
-        if (data.success) {
-          console.log('ユーザーID:', data.data.user_id);
-          console.log('ユーザー名:', data.data.name);
-          console.log('ロール:', data.data.role);
-          console.log('会社ID:', data.data.company_id);
-          console.log('satellite_ids生データ:', data.data.satellite_ids_raw);
-          console.log('satellite_idsパース後:', data.data.satellite_ids_parsed);
-          console.log('satellite_ids型:', data.data.satellite_ids_type);
-        }
-      })
-      .catch(error => {
-        console.error('デバッグAPI呼び出しエラー:', error);
-      });
+      console.log('=== デバッグ：現在のユーザー情報 ===');
+      console.log('ユーザーID:', currentUser.id);
+      console.log('ユーザー名:', currentUser.name);
+      console.log('ロール:', currentUser.role);
+      console.log('会社ID:', currentUser.company_id);
+      console.log('satellite_ids:', currentUser.satellite_ids);
+      console.log('satellite_id:', currentUser.satellite_id);
     }
     
     // 全ストレージのデバッグ情報を出力
@@ -273,20 +317,47 @@ const StudentManagementRefactored = ({ teacherId, onTestApproval, onSubmissionAp
         }
         // すべてのIDを数値に変換して統一
         satelliteIds = satelliteIds.map(id => parseInt(id)).filter(id => !isNaN(id));
+        console.log('正規化後のsatelliteIds:', satelliteIds);
+        
         if (satelliteIds.length > 0) {
-          const firstSatelliteId = parseInt(satelliteIds[0]); // 数値に変換
-          console.log('複数拠点所属指導員: 最初の拠点IDを設定:', firstSatelliteId);
-          setCurrentSatelliteId(firstSatelliteId);
-          setCurrentSatelliteName(currentUser?.satellite_name || `拠点${firstSatelliteId}`);
+          // セッションストレージに保存された拠点IDがある場合、それが所属拠点に含まれているか確認
+          const sessionSelectedSatellite = sessionStorage.getItem('selectedSatellite');
+          let selectedSatelliteId = parseInt(satelliteIds[0]); // デフォルトは最初の拠点
           
-          // sessionStorageにも保存
+          if (sessionSelectedSatellite) {
+            try {
+              const satelliteData = JSON.parse(sessionSelectedSatellite);
+              const sessionSatelliteId = parseInt(satelliteData.id);
+              
+              // セッションストレージの拠点IDが所属拠点に含まれているか確認
+              if (!isNaN(sessionSatelliteId) && satelliteIds.includes(sessionSatelliteId)) {
+                selectedSatelliteId = sessionSatelliteId;
+                console.log('セッションストレージから有効な拠点IDを取得:', selectedSatelliteId);
+              } else {
+                console.log('セッションストレージの拠点IDが所属拠点に含まれていません。最初の拠点を使用します。');
+                console.log('セッションストレージの拠点ID:', sessionSatelliteId);
+                console.log('所属拠点:', satelliteIds);
+              }
+            } catch (error) {
+              console.error('セッションストレージの拠点情報パースエラー:', error);
+            }
+          }
+          
+          console.log('最終的に選択された拠点ID:', selectedSatelliteId);
+          console.log('この拠点IDが所属拠点に含まれているか:', satelliteIds.includes(selectedSatelliteId));
+          
+          setCurrentSatelliteId(selectedSatelliteId);
+          setCurrentSatelliteName(currentUser?.satellite_name || `拠点${selectedSatelliteId}`);
+          
+          // sessionStorageにも保存（整合性を確保）
           const selectedSatelliteInfo = {
-            id: firstSatelliteId,
-            name: currentUser.satellite_name || `拠点${firstSatelliteId}`,
+            id: selectedSatelliteId,
+            name: currentUser.satellite_name || `拠点${selectedSatelliteId}`,
             company_id: currentUser.company_id,
             company_name: currentUser.company_name
           };
           sessionStorage.setItem('selectedSatellite', JSON.stringify(selectedSatelliteInfo));
+          console.log('sessionStorageに拠点情報を保存:', selectedSatelliteInfo);
         }
       }
     }
@@ -299,14 +370,34 @@ const StudentManagementRefactored = ({ teacherId, onTestApproval, onSubmissionAp
     try {
       console.log('=== fetchStudents開始 ===');
       console.log('currentSatelliteId:', currentSatelliteId);
+      console.log('currentUser:', currentUser);
+      console.log('currentUser.satellite_ids:', currentUser?.satellite_ids);
       console.log('localStorage accessToken:', localStorage.getItem('accessToken') ? '存在' : 'なし');
       setLoading(true);
       setError(null); // エラーをクリア
       
-      // 拠点IDが取得できない場合はエラーを設定
+      // 拠点IDが取得できない場合の処理を改善
       if (!currentSatelliteId) {
         console.log('拠点IDが取得できないため、利用者取得をスキップします');
-        setError('拠点IDが取得できません。拠点を選択してください。');
+        
+        // 複数拠点に所属する指導員の場合の特別なメッセージ
+        if (currentUser && currentUser.satellite_ids) {
+          let satelliteIds = currentUser.satellite_ids;
+          if (typeof satelliteIds === 'string') {
+            try {
+              satelliteIds = JSON.parse(satelliteIds);
+            } catch (e) {
+              // JSONパースに失敗した場合は文字列として扱う
+            }
+          }
+          if (Array.isArray(satelliteIds) && satelliteIds.length > 1) {
+            setError('複数拠点に所属しています。右上の拠点切り替えボタンから拠点を選択してください。');
+          } else {
+            setError('拠点IDが取得できません。拠点を選択してください。');
+          }
+        } else {
+          setError('拠点IDが取得できません。拠点を選択してください。');
+        }
         setStudents([]);
         return;
       }
@@ -328,7 +419,6 @@ const StudentManagementRefactored = ({ teacherId, onTestApproval, onSubmissionAp
       console.log('レスポンス詳細:', {
         success: response.success,
         message: response.message,
-        error: response.error,
         hasData: !!response.data,
         dataLength: response.data ? response.data.length : 0
       });
@@ -365,22 +455,20 @@ const StudentManagementRefactored = ({ teacherId, onTestApproval, onSubmissionAp
         
         setStudents(studentUsers);
       } else {
-        console.error('拠点利用者取得に失敗しました:', response.message || response.error || '不明なエラー');
+        console.error('拠点利用者取得に失敗しました:', response.message || '不明なエラー');
         console.error('失敗レスポンスの詳細:', {
           response: response,
           responseType: typeof response,
           responseKeys: Object.keys(response || {}),
           message: response.message,
-          error: response.error,
           success: response.success
         });
         
         // 認証エラーの場合は特別な処理
-        if ((response.message && response.message.includes('認証')) || 
-            (response.error && response.error.includes('認証'))) {
+        if (response.message && response.message.includes('認証')) {
           setError('認証に失敗しました。ログインし直してください。');
         } else {
-          const errorMessage = response.message || response.error || '不明なエラー';
+          const errorMessage = response.message || '不明なエラー';
           setError(`拠点利用者の取得に失敗しました: ${errorMessage}`);
         }
         setStudents([]);
@@ -401,8 +489,12 @@ const StudentManagementRefactored = ({ teacherId, onTestApproval, onSubmissionAp
         setError('バックエンドサーバーに接続できません。サーバーが起動しているか確認してください。');
       } else if (error.message && error.message.includes('拠点IDが無効です')) {
         setError('拠点IDが無効です。拠点を選択し直してください。');
+      } else if (error.message && (error.message.includes('アクセス権限') || error.message.includes('Access denied'))) {
+        setError('指定された拠点へのアクセス権限がありません。所属している拠点を選択してください。');
+      } else if (error.status === 404 || error.message && error.message.includes('404')) {
+        setError('指定された拠点が見つかりません。拠点を選択し直してください。');
       } else {
-        setError('利用者データの取得中にエラーが発生しました');
+        setError('利用者データの取得中にエラーが発生しました。ページを再読み込みしてください。');
       }
       setStudents([]);
     } finally {
@@ -573,6 +665,29 @@ const StudentManagementRefactored = ({ teacherId, onTestApproval, onSubmissionAp
 
   // 拠点が選択されていない場合のメッセージ
   if (!currentSatelliteId) {
+    // 複数拠点に所属する指導員かどうかを確認
+    let isMultiSatellite = false;
+    let satelliteIds = [];
+    if (currentUser && currentUser.satellite_ids) {
+      let ids = currentUser.satellite_ids;
+      if (typeof ids === 'string') {
+        try {
+          ids = JSON.parse(ids);
+        } catch (e) {
+          // JSONパースに失敗した場合は文字列として扱う
+          if (ids.includes(',')) {
+            ids = ids.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+          } else {
+            ids = [parseInt(ids)];
+          }
+        }
+      }
+      if (Array.isArray(ids) && ids.length > 1) {
+        isMultiSatellite = true;
+        satelliteIds = ids.filter(id => id !== null && id !== undefined);
+      }
+    }
+    
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
         <div className="max-w-7xl mx-auto">
@@ -583,11 +698,24 @@ const StudentManagementRefactored = ({ teacherId, onTestApproval, onSubmissionAp
               <p className="text-gray-600 mb-6">
                 利用者一覧を表示するには、まず拠点を選択してください。
               </p>
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-                <p className="text-yellow-800 text-sm">
-                  💡 ヒント: 右上の拠点切り替えボタンから拠点を選択してください。
-                </p>
-              </div>
+              {isMultiSatellite ? (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                  <p className="text-blue-800 text-sm font-medium mb-2">
+                    💡 複数拠点に所属しています
+                  </p>
+                  <p className="text-blue-700 text-sm">
+                    あなたは {satelliteIds.length} つの拠点に所属しています。
+                    <br />
+                    右上の拠点切り替えボタンから、表示したい拠点を選択してください。
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                  <p className="text-yellow-800 text-sm">
+                    💡 ヒント: 右上の拠点切り替えボタンから拠点を選択してください。
+                  </p>
+                </div>
+              )}
               {currentUser && currentUser.role >= 6 && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
                   <p className="text-blue-800 text-sm">
@@ -694,6 +822,22 @@ const StudentManagementRefactored = ({ teacherId, onTestApproval, onSubmissionAp
                 }}
               >
                 + 新しい利用者を追加
+              </button>
+              <button 
+                className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={handleCareerAssessmentClick}
+                disabled={isLoadingCareerAssessment}
+              >
+                {isLoadingCareerAssessment ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    読み込み中...
+                  </>
+                ) : (
+                  <>
+                    🎯 適職診断管理
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -1129,7 +1273,7 @@ const StudentManagementRefactored = ({ teacherId, onTestApproval, onSubmissionAp
                   <form onSubmit={studentAdder.handleAddStudent} className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
-                        <label htmlFor="name" className="block text-sm font-semibold text-gray-700 mb-2">利用者名</label>
+                        <label htmlFor="name" className="block text-sm font-semibold text-gray-700 mb-2">利用者名 <span className="text-red-500">*</span></label>
                         <input
                           type="text"
                           id="name"
@@ -1292,7 +1436,7 @@ const StudentManagementRefactored = ({ teacherId, onTestApproval, onSubmissionAp
                 <form onSubmit={(e) => { e.preventDefault(); studentEditor.handleUpdateStudent(); }} className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                      <label htmlFor="edit_name" className="block text-sm font-semibold text-gray-700 mb-2">利用者名</label>
+                      <label htmlFor="edit_name" className="block text-sm font-semibold text-gray-700 mb-2">利用者名 <span className="text-red-500">*</span></label>
                       <input
                         type="text"
                         id="edit_name"

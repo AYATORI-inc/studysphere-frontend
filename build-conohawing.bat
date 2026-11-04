@@ -36,7 +36,7 @@ REM フロントエンドディレクトリに移動
 cd /d "%FRONTEND_DIR%"
 
 REM ConoHaWing用の環境変数を設定
-set REACT_APP_API_URL=https://backend.studysphere.ayatori-inc.co.jp
+set REACT_APP_API_URL=https://studysphere-backend.ayatori-inc.co.jp
 set NODE_ENV=production
 
 echo API URL: %REACT_APP_API_URL%
@@ -87,14 +87,17 @@ REM ビルドファイルをデプロイディレクトリにコピー
 echo Copying build files...
 xcopy "%BUILD_DIR%\*" "%DEPLOY_DIR%\" /E /I /Q /Y
 
-REM ConoHaWing用設定ファイルをコピー
+REM ConoHaWing用設定ファイルをコピー（プロジェクトのpublic/.htaccessを優先）
 echo Copying ConoHaWing configuration...
-if exist "..\production_build\configs\conohawing\.htaccess" (
+if exist "%FRONTEND_DIR%public\.htaccess" (
+    copy "%FRONTEND_DIR%public\.htaccess" "%DEPLOY_DIR%\" /Y
+    echo .htaccess file copied from public\.htaccess
+) else if exist "..\production_build\configs\conohawing\.htaccess" (
     copy "..\production_build\configs\conohawing\.htaccess" "%DEPLOY_DIR%\" /Y
-    echo .htaccess file copied successfully
+    echo .htaccess file copied from production_build config
 ) else (
-    echo Warning: .htaccess file not found at ..\production_build\configs\conohawing\.htaccess
-    echo Please ensure the .htaccess file is in the correct location
+    echo Warning: .htaccess file was not found.
+    echo Required location: public\.htaccess
 )
 
 REM package.jsonのhomepage設定を確認・修正

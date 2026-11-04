@@ -125,10 +125,44 @@ const TodayActiveModal = ({
       const params = new URLSearchParams();
       
       // 現在選択中の拠点IDを取得して追加
-      const currentSatelliteId = getCurrentUserSatelliteId(currentUser);
+      let currentSatelliteId = getCurrentUserSatelliteId(currentUser);
       console.log('=== TodayActiveModal fetchTempPasswordUsers デバッグ ===');
       console.log('currentUser:', currentUser);
-      console.log('currentSatelliteId:', currentSatelliteId);
+      console.log('currentSatelliteId (初回取得):', currentSatelliteId);
+      
+      // 拠点IDが取得できない場合、セッションストレージから直接取得を試みる
+      if (!currentSatelliteId) {
+        try {
+          const sessionSelectedSatellite = sessionStorage.getItem('selectedSatellite');
+          if (sessionSelectedSatellite) {
+            const satelliteData = JSON.parse(sessionSelectedSatellite);
+            if (satelliteData && satelliteData.id) {
+              currentSatelliteId = parseInt(satelliteData.id);
+              console.log('セッションストレージから拠点IDを取得:', currentSatelliteId);
+            }
+          }
+        } catch (error) {
+          console.error('セッションストレージからの拠点ID取得エラー:', error);
+        }
+      }
+      
+      // まだ取得できていない場合、ユーザーの所属拠点から最初の拠点を使用
+      if (!currentSatelliteId && currentUser && currentUser.satellite_ids) {
+        try {
+          let satelliteIds = currentUser.satellite_ids;
+          if (typeof satelliteIds === 'string') {
+            satelliteIds = JSON.parse(satelliteIds);
+          }
+          if (Array.isArray(satelliteIds) && satelliteIds.length > 0) {
+            currentSatelliteId = parseInt(satelliteIds[0]);
+            console.log('ユーザーの所属拠点から最初の拠点IDを使用:', currentSatelliteId);
+          }
+        } catch (error) {
+          console.error('ユーザーの所属拠点からの取得エラー:', error);
+        }
+      }
+      
+      console.log('最終的なcurrentSatelliteId:', currentSatelliteId);
       console.log('selectedInstructors:', selectedInstructors);
       
       if (currentSatelliteId) {

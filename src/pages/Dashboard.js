@@ -66,7 +66,25 @@ const Dashboard = ({ onTabChange, messageRefreshSignal = 0 }) => {
           const currentLesson = currentLessonData.data[0];
           console.log(`🎯 現在受講中レッスン: レッスンID ${currentLesson.lesson_id}, コースID ${courseId}`);
           
-          // 学習画面に遷移（進捗更新は不要、既にin_progress状態）
+          // 学習画面に遷移前に「最終アクセス日時」を更新（同時刻更新での誤判定を防ぐ）
+          try {
+            await fetch(`${API_BASE_URL}/api/learning/progress/lesson`, {
+              method: 'PUT',
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                userId: parseInt(currentUser.id),
+                lessonId: parseInt(currentLesson.lesson_id),
+                status: 'in_progress',
+                forceUpdate: true
+              })
+            });
+          } catch (e) {
+            console.warn('最終アクセス日時の更新に失敗しました（遷移は継続）:', e);
+          }
+
           navigate(`/student/enhanced-learning?course=${courseId}&lesson=${currentLesson.lesson_id}`);
           return;
         }

@@ -19,6 +19,7 @@ const isAuthRequiredEndpoint = (url) => {
     '/register',
     '/forgot-password',
     '/api/messages/unread-count',
+    '/api/temp-passwords/status/',
     '/verify-temp-password',
     '/api/users/verify-temp-password',
     '/api/users/login',
@@ -28,8 +29,7 @@ const isAuthRequiredEndpoint = (url) => {
     '/api/users/forgot-password',
     '/api/remote-support/login',
     '/api/remote-support/check-temp-password',
-    '/api/remote-support/auto-login',
-    '/restore-master-user'
+    '/api/remote-support/auto-login'
   ];
   
   // 静的リソースやHMRファイルを除外
@@ -135,6 +135,24 @@ export const setupFetchInterceptor = () => {
         if (!isAuthRequiredEndpoint(url)) {
           console.log('Fetchインターセプター: 認証不要エンドポイントのため、認証エラー処理をスキップ');
           return response;
+        }
+        
+        // 403エラーの場合、レスポンスボディを確認して権限エラーかどうかを判定
+        if (response.status === 403) {
+          try {
+            const responseClone = response.clone();
+            const errorData = await responseClone.json();
+            // 権限エラー（拠点アクセス権限エラーなど）の場合は認証エラーとして扱わない
+            if (errorData.errorType === 'SATELLITE_ACCESS_DENIED' || 
+                errorData.message?.includes('所属拠点') ||
+                errorData.message?.includes('アクセス権限')) {
+              console.log('Fetchインターセプター: 権限エラーのため、認証エラー処理をスキップ');
+              return response;
+            }
+          } catch (parseError) {
+            // JSONパースに失敗した場合は認証エラーとして処理を続行
+            console.log('Fetchインターセプター: レスポンスボディの解析に失敗、認証エラーとして処理');
+          }
         }
         
         // 認証エラー処理フラグを設定

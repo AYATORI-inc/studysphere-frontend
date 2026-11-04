@@ -1,5 +1,20 @@
   // セッションストレージ管理用のユーティリティ
   export const SessionStorageManager = {
+    // このプロジェクト専用のキー接頭辞（他機能のsessionStorageキーと衝突させない）
+    _KEY_PREFIX: 'studysphere_ctx',
+
+    // 文字列を短い固定長にするための簡易ハッシュ（衝突しづらいが暗号用途ではない）
+    _hashString: (input) => {
+      if (!input) return '0';
+      // djb2 variant
+      let hash = 5381;
+      for (let i = 0; i < input.length; i++) {
+        hash = ((hash << 5) + hash) ^ input.charCodeAt(i);
+      }
+      // unsigned 32bit hex
+      return (hash >>> 0).toString(16);
+    },
+
     // エラーハンドリング用のヘルパー関数
     _safeExecute: (operation, fallback) => {
       try {
@@ -12,28 +27,34 @@
   // キー生成
   generateKey: (lessonId, s3Key, fileType = null) => {
     try {
-      if (!s3Key) {
-        return `context_${lessonId}_unknown`;
+      const safeS3Key = s3Key || 'unknown';
+
+      // ファイルタイプに応じてカテゴリを決定（キーの一部）
+      let type = 'context';
+      const ft = (fileType || '').toLowerCase();
+      if (ft === 'pdf' || ft === 'application/pdf') {
+        type = 'pdf';
+      } else if (ft === 'md' || ft === 'text/markdown') {
+        type = 'md';
+      } else if (ft === 'txt' || ft === 'text/plain') {
+        type = 'txt';
+      } else if (ft === 'application/rtf' || ft === 'rtf') {
+        type = 'rtf';
       }
-      
-      // ファイルタイプに応じてプレフィックスを決定
-      let prefix = 'context';
-      if (fileType === 'pdf') {
-        prefix = 'pdf_context';
-      } else if (fileType === 'md' || fileType === 'text/markdown') {
-        prefix = 'md_context';
-      } else if (fileType === 'txt' || fileType === 'text/plain') {
-        prefix = 'txt_context';
-      }
-      
-      // レッスンIDとS3キーの組み合わせでユニークなキーを生成
-      // セクション変更時も異なるキーになるように
-      const key = `${prefix}_${lessonId}_${lessonId}_${s3Key.split('/').pop()}`;
-      return key;
+
+      // 以前はファイル名のみでキー生成しており、同名ファイルの衝突で
+      // 別セクションの内容が誤って表示される可能性があったため、
+      // S3キー全体のハッシュをキーに含めて衝突を避ける。
+      const s3Hash = SessionStorageManager._hashString(safeS3Key);
+      const fileName = safeS3Key.split('/').pop() || 'unknown';
+      const encodedFileName = encodeURIComponent(fileName);
+
+      // `::` 区切りで lessonId の抽出が安全にできる形式にする
+      return `${SessionStorageManager._KEY_PREFIX}::${type}::${lessonId}::${s3Hash}::${encodedFileName}`;
     } catch (error) {
       console.error('キー生成エラー:', error);
       // フォールバック: タイムスタンプベースのキー生成
-      const fallbackKey = `context_${lessonId}_${Date.now()}`;
+      const fallbackKey = `${SessionStorageManager._KEY_PREFIX}::context::${lessonId}::fallback::${Date.now()}`;
       return fallbackKey;
     }
   },
@@ -128,9 +149,23 @@
   clearLessonContext: (lessonId) => {
     const keys = Object.keys(sessionStorage);
     keys.forEach(key => {
-      if (key.startsWith(`pdf_context_${lessonId}_`)) {
+      // 旧形式キー（pdf_context_...）と新形式キー（studysphere_ctx::...）の両方に対応
+      if (key.startsWith(`pdf_context_${lessonId}_`) ||
+          key.startsWith(`md_context_${lessonId}_`) ||
+          key.startsWith(`txt_context_${lessonId}_`) ||
+          key.startsWith(`context_${lessonId}_`)) {
         sessionStorage.removeItem(key);
-        console.log('レッスンコンテキストをクリア:', key);
+        console.log('レッスンコンテキストをクリア(旧形式):', key);
+        return;
+      }
+
+      if (key.startsWith(`${SessionStorageManager._KEY_PREFIX}::`)) {
+        const parts = key.split('::');
+        // parts: [prefix, type, lessonId, hash, filename]
+        if (parts.length >= 3 && String(parts[2]) === String(lessonId)) {
+        sessionStorage.removeItem(key);
+          console.log('レッスンコンテキストをクリア:', key);
+        }
       }
     });
   },
@@ -139,20 +174,63 @@
   clearAllContexts: () => {
     const keys = Object.keys(sessionStorage);
     keys.forEach(key => {
-      if (key.startsWith('pdf_context_')) {
+      if (
+        key.startsWith('pdf_context_') ||
+        key.startsWith('md_context_') ||
+        key.startsWith('txt_context_') ||
+        key.startsWith('context_') ||
+        key.startsWith(`${SessionStorageManager._KEY_PREFIX}::`)
+      ) {
         sessionStorage.removeItem(key);
       }
     });
     console.log('全コンテキストをクリア');
   },
   
+  // 最後に開いたセクションの保存（レッスンごと・ユーザーごと・学習再開用）
+  LAST_SECTION_KEY_PREFIX: 'studysphere:lastSection:',
+
+  getLastSectionKey: (userId, lessonId) =>
+    `${SessionStorageManager.LAST_SECTION_KEY_PREFIX}user:${userId}:lesson:${lessonId}`,
+
+  saveLastSection: (userId, lessonId, sectionIndex, textKey = null) => {
+    try {
+      const key = SessionStorageManager.getLastSectionKey(userId, lessonId);
+      const value = { index: sectionIndex, textKey: textKey || null };
+      localStorage.setItem(key, JSON.stringify(value));
+      return true;
+    } catch (e) {
+      console.warn('最後に開いたセクションのローカル保存に失敗しました:', e);
+      return false;
+    }
+  },
+
+  getLastSection: (userId, lessonId) => {
+    try {
+      const key = SessionStorageManager.getLastSectionKey(userId, lessonId);
+      const raw = localStorage.getItem(key);
+      if (!raw) return null;
+      const value = JSON.parse(raw);
+      if (typeof value?.index !== 'number') return null;
+      return { index: value.index, textKey: value.textKey || null };
+    } catch (e) {
+      return null;
+    }
+  },
+
   // 保存されているコンテキストの一覧を取得
   getStoredContexts: () => {
     const contexts = [];
     const keys = Object.keys(sessionStorage);
     
     keys.forEach(key => {
-      if (key.startsWith('pdf_context_')) {
+      if (
+        key.startsWith('pdf_context_') ||
+        key.startsWith('md_context_') ||
+        key.startsWith('txt_context_') ||
+        key.startsWith('context_') ||
+        key.startsWith(`${SessionStorageManager._KEY_PREFIX}::`)
+      ) {
         try {
           const data = JSON.parse(sessionStorage.getItem(key));
           contexts.push({

@@ -8,6 +8,7 @@ import { API_BASE_URL } from '../config/apiConfig';
 import Dashboard from './Dashboard';
 import LessonList from './LessonList';
 import CareerAssessment from '../components/CareerAssessment';
+import ToyBox from '../components/ToyBox';
 import PersonalMessageList from '../components/PersonalMessageList';
 import AnnouncementList from '../components/AnnouncementList';
 import useBrowserNotifications from '../utils/hooks/useBrowserNotifications';
@@ -691,6 +692,21 @@ const StudentDashboard = () => {
             >
               🎯 適職診断
             </button>
+            <button 
+              className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 ${
+                activeTab === 'toybox'
+                  ? 'bg-gradient-to-r from-blue-500 to-cyan-600 text-white shadow-lg'
+                  : 'text-gray-600 hover:bg-blue-50 hover:text-blue-700'
+              }`}
+              onClick={() => handleTabChange('toybox')}
+            >
+              <img 
+                src="/images/toybox/TOYBOX.png" 
+                alt="TOYBOX" 
+                className="h-5 w-auto object-contain"
+              />
+              <span>TOYBOX</span>
+            </button>
           </div>
         </div>
       </div>
@@ -765,6 +781,12 @@ const StudentDashboard = () => {
           {activeTab === 'career-assessment' && (
             <div className="bg-white rounded-2xl shadow-xl p-8">
               <CareerAssessment />
+            </div>
+          )}
+          
+          {activeTab === 'toybox' && (
+            <div className="bg-white rounded-2xl shadow-xl p-8">
+              <ToyBox />
             </div>
           )}
         </div>

@@ -44,7 +44,7 @@ const PendingSubmissionAlert = ({ satelliteId, onSubmissionClick, onStudentClick
     return null;
   }
 
-  // 学生ごとにグループ化
+  // 利用者ごとにグループ化
   const groupedByStudent = pendingSubmissions.reduce((acc, submission) => {
     const studentId = submission.user_id;
     if (!acc[studentId]) {
@@ -97,7 +97,7 @@ const PendingSubmissionAlert = ({ satelliteId, onSubmissionClick, onStudentClick
       </div>
       
       <div className="mt-3 text-xs text-orange-700">
-        💡 学生名をクリックして該当者の行に移動し、提出物確認ボタンから個別に確認・承認できます
+        💡 利用者名をクリックして該当者の行に移動し、提出物確認ボタンから個別に確認・承認できます
       </div>
     </div>
   );

@@ -230,7 +230,7 @@ const DailyRecordsPage = () => {
             <form onSubmit={addRecord} className="p-6 space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">実施日 *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2 required-asterisk">実施日</label>
                   <SanitizedInput 
                     type="date" 
                     value={recordForm.date}
@@ -241,7 +241,7 @@ const DailyRecordsPage = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">開始時間 *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2 required-asterisk">開始時間</label>
                   <SanitizedInput 
                     type="time" 
                     value={recordForm.startTime}
@@ -252,7 +252,7 @@ const DailyRecordsPage = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">終了時間 *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2 required-asterisk">終了時間</label>
                   <SanitizedInput 
                     type="time" 
                     value={recordForm.endTime}
@@ -265,7 +265,7 @@ const DailyRecordsPage = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">支援方法 *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2 required-asterisk">支援方法</label>
                 <select 
                   value={recordForm.supportMethod}
                   onChange={(e) => setRecordForm({...recordForm, supportMethod: e.target.value})}
@@ -280,7 +280,7 @@ const DailyRecordsPage = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">作業・訓練内容 *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2 required-asterisk">作業・訓練内容</label>
                 <SanitizedTextarea
                   value={recordForm.workContent}
                   onChange={(e) => setRecordForm({...recordForm, workContent: e.target.value})}
@@ -293,7 +293,7 @@ const DailyRecordsPage = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">支援内容（1日2回以上） *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2 required-asterisk">支援内容（1日2回以上）</label>
                 <SanitizedTextarea
                   value={recordForm.supportContent}
                   onChange={(e) => setRecordForm({...recordForm, supportContent: e.target.value})}
@@ -306,7 +306,7 @@ const DailyRecordsPage = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">対象者の心身の状況及びそれに対する助言の内容 *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2 required-asterisk">対象者の心身の状況及びそれに対する助言の内容</label>
                 <SanitizedTextarea
                   value={recordForm.healthStatus}
                   onChange={(e) => setRecordForm({...recordForm, healthStatus: e.target.value})}

@@ -160,11 +160,14 @@ const HomeSupportTab = () => {
         response.data.forEach(record => {
           const userId = record.id;
           if (!userMap.has(userId)) {
+            const recipientNum = record.recipient_number ?? record.recipientNumber ?? '';
             userMap.set(userId, {
               id: record.id,
               name: record.name,
               instructorName: record.instructor_name || '未設定',
               email: record.login_code || '未設定',
+              recipient_number: recipientNum,
+              recipientNumber: recipientNum,
               status: 'active', // 在宅支援利用者はアクティブ
               progress: 0,
               tags: ['在宅支援'],
@@ -907,7 +910,7 @@ const HomeSupportTab = () => {
                         className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-medium transition-all duration-200"
                         onClick={() => startDailySupportRecord(student)}
                       >
-                        📝 本人記録
+                        📝 支援記録
                       </button>
                       <button
                         className="px-3 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg font-medium transition-all duration-200 text-sm"
@@ -957,7 +960,7 @@ const HomeSupportTab = () => {
         onSuccess={handleAddUsersSuccess}
       />
 
-      {/* 本人記録モーダル */}
+      {/* 支援記録モーダル */}
       {showDailySupportRecordModal && selectedStudentForDailyRecord && (
         <DailySupportRecordModal
           isOpen={showDailySupportRecordModal}
@@ -966,7 +969,7 @@ const HomeSupportTab = () => {
             setSelectedStudentForDailyRecord(null);
           }}
           onSave={(data) => {
-            console.log('本人記録を保存:', data);
+            console.log('支援記録を保存:', data);
             setShowDailySupportRecordModal(false);
             setSelectedStudentForDailyRecord(null);
             fetchHomeSupportUsers();

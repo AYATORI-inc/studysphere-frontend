@@ -34,6 +34,37 @@ export const getActualRoleId = (authUser) => {
 };
 
 // 現在のユーザーの拠点IDを取得
+export const normalizeSatelliteId = (value) => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (typeof value === 'object') {
+    if (value === null) {
+      return null;
+    }
+    if ('id' in value) {
+      return normalizeSatelliteId(value.id);
+    }
+  }
+
+  const stringValue = String(value).trim();
+  if (
+    stringValue === '' ||
+    stringValue.toLowerCase() === 'null' ||
+    stringValue.toLowerCase() === 'undefined'
+  ) {
+    return null;
+  }
+
+  const numericValue = parseInt(stringValue, 10);
+  if (Number.isNaN(numericValue)) {
+    return null;
+  }
+
+  return numericValue;
+};
+
 export const getCurrentUserSatelliteId = (currentUser) => {
   console.log('=== getCurrentUserSatelliteId デバッグ ===');
   console.log('現在のユーザー情報:', currentUser);
@@ -44,14 +75,15 @@ export const getCurrentUserSatelliteId = (currentUser) => {
   
   // 1. 管理者の場合、ログイン時選択した拠点を最優先で確認
   if (currentUser && currentUser.role >= 6 && currentUser.satellite_id) {
-    console.log('管理者用: ログイン時選択拠点IDを使用:', currentUser.satellite_id);
+    const normalized = normalizeSatelliteId(currentUser.satellite_id);
+    console.log('管理者用: ログイン時選択拠点IDを使用:', normalized);
     
     // セッションストレージとの同期を確認
     const sessionSelectedSatellite = sessionStorage.getItem('selectedSatellite');
-    if (!sessionSelectedSatellite && currentUser.satellite_name) {
+    if (!sessionSelectedSatellite && currentUser.satellite_name && normalized) {
       // セッションストレージにない場合は同期
       const selectedSatelliteInfo = {
-        id: currentUser.satellite_id,
+        id: normalized,
         name: currentUser.satellite_name,
         company_id: currentUser.company_id,
         company_name: currentUser.company_name
@@ -60,7 +92,7 @@ export const getCurrentUserSatelliteId = (currentUser) => {
       console.log('セッションストレージに拠点情報を同期:', selectedSatelliteInfo);
     }
     
-    return currentUser.satellite_id;
+    return normalized;
   }
   
   // 2. セッションストレージから拠点情報を取得（全ユーザー用）
@@ -69,9 +101,10 @@ export const getCurrentUserSatelliteId = (currentUser) => {
     if (selectedSatellite) {
       const satellite = JSON.parse(selectedSatellite);
       console.log('セッションストレージから取得した拠点情報:', satellite);
-      if (satellite.id) {
-        console.log('セッションストレージから拠点IDを取得:', satellite.id);
-        return satellite.id;
+      const normalized = normalizeSatelliteId(satellite?.id);
+      if (normalized) {
+        console.log('セッションストレージから拠点IDを取得:', normalized);
+        return normalized;
       }
     }
   } catch (error) {
@@ -93,9 +126,12 @@ export const getCurrentUserSatelliteId = (currentUser) => {
         console.error('satellite_idsのパースエラー:', error);
         // パースに失敗した場合は、カンマ区切りとして扱う
         if (satelliteIds.includes(',')) {
-          satelliteIds = satelliteIds.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+          satelliteIds = satelliteIds
+            .split(',')
+            .map(id => normalizeSatelliteId(id.trim()))
+            .filter(id => id !== null);
         } else {
-          satelliteIds = [parseInt(satelliteIds)];
+          satelliteIds = [normalizeSatelliteId(satelliteIds)];
         }
       }
     } else {
@@ -109,17 +145,12 @@ export const getCurrentUserSatelliteId = (currentUser) => {
     }
     
     // すべてのIDを数値に変換して統一（文字列の"1", "2"なども数値に変換）
-    satelliteIds = satelliteIds.map(id => {
-      const numId = parseInt(id);
-      if (isNaN(numId)) {
-        console.warn('無効な拠点ID:', id);
-        return null;
-      }
-      return numId;
-    }).filter(id => id !== null);
+      satelliteIds = satelliteIds
+        .map((id) => normalizeSatelliteId(id))
+        .filter((id) => id !== null);
     
     if (satelliteIds.length > 0) {
-      const satelliteId = parseInt(satelliteIds[0]); // 数値に変換
+      const satelliteId = normalizeSatelliteId(satelliteIds[0]); // 数値に変換
       console.log('ユーザーから取得した拠点ID:', satelliteId);
       
       // 拠点IDが取得できた場合、sessionStorageに保存（まだ保存されていない場合）
@@ -140,8 +171,10 @@ export const getCurrentUserSatelliteId = (currentUser) => {
         try {
           const parsedSatellite = JSON.parse(sessionSelectedSatellite);
           // 選択された拠点IDがユーザーの所属拠点に含まれているか確認（型を統一して比較）
-          const parsedSatelliteId = parseInt(parsedSatellite.id);
-          const isIncluded = satelliteIds.some(id => parseInt(id) === parsedSatelliteId);
+          const parsedSatelliteId = normalizeSatelliteId(parsedSatellite.id);
+          const isIncluded = parsedSatelliteId
+            ? satelliteIds.some(id => normalizeSatelliteId(id) === parsedSatelliteId)
+            : false;
           if (!isIncluded) {
             console.log('選択された拠点IDが所属拠点に含まれていません。最初の拠点に変更します');
             const selectedSatelliteInfo = {
@@ -194,9 +227,12 @@ export const getCurrentUserSatelliteId = (currentUser) => {
           console.error('localStorageのsatellite_idsのパースエラー:', error);
           // パースに失敗した場合は、カンマ区切りとして扱う
           if (satelliteIds.includes(',')) {
-            satelliteIds = satelliteIds.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+            satelliteIds = satelliteIds
+              .split(',')
+              .map(id => normalizeSatelliteId(id.trim()))
+              .filter(id => id !== null);
           } else {
-            satelliteIds = [parseInt(satelliteIds)];
+            satelliteIds = [normalizeSatelliteId(satelliteIds)];
           }
         }
       }
@@ -207,10 +243,12 @@ export const getCurrentUserSatelliteId = (currentUser) => {
       }
       
       // すべてのIDを数値に変換して統一
-      satelliteIds = satelliteIds.map(id => parseInt(id)).filter(id => !isNaN(id));
+      satelliteIds = satelliteIds
+        .map(id => normalizeSatelliteId(id))
+        .filter(id => id !== null);
       
       if (satelliteIds.length > 0) {
-        const satelliteId = parseInt(satelliteIds[0]); // 数値に変換
+        const satelliteId = normalizeSatelliteId(satelliteIds[0]); // 数値に変換
         console.log('localStorageから取得した拠点ID:', satelliteId);
         return satelliteId;
       }

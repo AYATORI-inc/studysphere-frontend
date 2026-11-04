@@ -26,7 +26,7 @@ build-conohawing.bat
 
 ### .htaccessファイルが必須
 - `.htaccess`ファイルが正しくアップロードされていることを確認
-- このファイルによりAPIリクエストがバックエンドにプロキシされます
+- React Router の直接アクセス時に `index.html` へフォールバックするために必要です
 
 ### ファイル構造
 ```
@@ -43,7 +43,7 @@ public_html/
 - `.htaccess`ファイルがアップロードされているか確認
 
 ### APIエラーが出る場合
-- バックエンドサーバー（backend.studysphere.ayatori-inc.co.jp）が動作しているか確認
+- バックエンドサーバー（例: `backend2.studysphere.ayatori-inc.co.jp`）が動作しているか確認
 
 ### 静的ファイルが読み込まれない場合
 - ファイルのアップロードが完了しているか確認

@@ -200,7 +200,7 @@ const StudentLogin = () => {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label htmlFor="loginCode" className="block text-sm font-medium text-gray-700 mb-2">
-              ログインコード
+              ログインコード <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
@@ -215,7 +215,7 @@ const StudentLogin = () => {
 
           <div>
             <label htmlFor="tempPassword" className="block text-sm font-medium text-gray-700 mb-2">
-              一時パスワード
+              一時パスワード <span className="text-red-500">*</span>
               {tempPasswordStatus?.hasValidPassword && (
                 <span className="ml-2 text-xs text-green-600">(自動入力済み)</span>
               )}

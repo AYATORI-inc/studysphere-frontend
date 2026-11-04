@@ -2,7 +2,8 @@ import React from 'react';
 
 const FileUploadSection = ({ 
   uploadedFiles, 
-  onFileDelete 
+  onFileDelete, 
+  className = ''
 }) => {
   const formatFileSize = (bytes) => {
     if (bytes === 0) return '0 Bytes';
@@ -27,10 +28,9 @@ const FileUploadSection = ({
     
     return formatted;
   };
-
   return (
-    <div className="bg-white rounded-2xl shadow-xl p-6 mt-6">
-      <div className="flex items-center gap-3 mb-4">
+    <div className={`bg-white rounded-2xl shadow-xl p-6 h-full flex flex-col overflow-hidden ${className}`}>
+      <div className="flex items-center gap-3 mb-4 workspace-widget-handle cursor-move select-none">
         <span className="text-2xl">📁</span>
         <h3 className="text-xl font-bold text-gray-800">提出物確認</h3>
         <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
@@ -38,7 +38,7 @@ const FileUploadSection = ({
         </span>
       </div>
       
-      <div className="space-y-3">
+      <div className="flex-1 overflow-y-auto space-y-3 custom-scrollbar pr-1">
         {uploadedFiles.map(file => (
           <div key={file.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
             <div className="flex-1 min-w-0">
@@ -73,9 +73,9 @@ const FileUploadSection = ({
           </div>
         ))}
         {uploadedFiles.length === 0 && (
-          <div className="text-center py-8">
+          <div className="flex flex-col items-center justify-center text-center py-8 text-gray-500 border border-dashed border-gray-200 rounded-lg bg-gray-50">
             <div className="text-gray-400 text-4xl mb-2">📁</div>
-            <p className="text-gray-500 text-sm">アップロードされたファイルはありません</p>
+            <p className="text-sm">アップロードされたファイルはありません</p>
             <p className="text-gray-400 text-xs mt-1">ZIPファイルをアップロードしてください</p>
           </div>
         )}

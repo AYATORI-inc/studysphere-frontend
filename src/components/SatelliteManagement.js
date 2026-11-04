@@ -514,8 +514,12 @@ const SatelliteManagement = ({ currentUser }) => {
                     <SanitizedInput
                       type="text"
                       value={editSatellite.phone}
-                      onChange={(e) => setEditSatellite({...editSatellite, phone: e.target.value})}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/[^0-9\-]/g, '');
+                        setEditSatellite({...editSatellite, phone: val});
+                      }}
                       options={SANITIZE_OPTIONS}
+                      placeholder="03-1234-5678"
                       className="w-full p-2 border border-gray-300 rounded-md"
                     />
                   </div>
@@ -611,8 +615,8 @@ const SatelliteManagement = ({ currentUser }) => {
                 <h4 className="text-lg font-medium text-gray-800 mb-4">新しい指導員を追加</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      名前 *
+                    <label className="block text-sm font-medium text-gray-700 mb-1 required-asterisk">
+                      名前
                     </label>
                     <SanitizedInput
                       type="text"
@@ -624,8 +628,8 @@ const SatelliteManagement = ({ currentUser }) => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      ログインID *
+                    <label className="block text-sm font-medium text-gray-700 mb-1 required-asterisk">
+                      ログインID
                     </label>
                     <SanitizedInput
                       type="text"
@@ -648,8 +652,8 @@ const SatelliteManagement = ({ currentUser }) => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      パスワード *
+                    <label className="block text-sm font-medium text-gray-700 mb-1 required-asterisk">
+                      パスワード
                     </label>
                     <input
                       type="password"

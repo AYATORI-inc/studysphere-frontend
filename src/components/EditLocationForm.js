@@ -72,8 +72,8 @@ const EditLocationForm = ({ locationInfo, onSubmit, onCancel, loading }) => {
           
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                拠点名 *
+              <label className="block text-sm font-medium text-gray-700 mb-1 required-asterisk">
+                拠点名
               </label>
               <SanitizedInput
                 type="text"
@@ -92,8 +92,8 @@ const EditLocationForm = ({ locationInfo, onSubmit, onCancel, loading }) => {
             
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                住所 *
+              <label className="block text-sm font-medium text-gray-700 mb-1 required-asterisk">
+                住所
               </label>
               <SanitizedInput
                 type="text"
@@ -110,17 +110,20 @@ const EditLocationForm = ({ locationInfo, onSubmit, onCancel, loading }) => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                電話番号 *
+              <label className="block text-sm font-medium text-gray-700 mb-1 required-asterisk">
+                電話番号
               </label>
               <SanitizedInput
                 type="text"
                 value={formData.phone}
-                onChange={(value) => handleChange('phone', value)}
+                onChange={(val) => {
+                  const raw = typeof val === 'string' ? val : (val?.target?.value ?? '');
+                  handleChange('phone', raw.replace(/[^0-9\-]/g, ''));
+                }}
                 className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                   errors.phone ? 'border-red-500' : 'border-gray-300'
                 }`}
-                placeholder="電話番号"
+                placeholder="03-1234-5678"
               />
               {errors.phone && (
                 <p className="text-red-500 text-sm mt-1">{errors.phone}</p>

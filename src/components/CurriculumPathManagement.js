@@ -679,7 +679,7 @@ const PathAddModal = ({ availableCourses, onAdd, onClose }) => {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">パス名 *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2 required-asterisk">パス名</label>
               <input
                 type="text"
                 name="name"
@@ -691,7 +691,7 @@ const PathAddModal = ({ availableCourses, onAdd, onClose }) => {
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">対象者 *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2 required-asterisk">対象者</label>
               <textarea
                 name="target_audience"
                 value={formData.target_audience}
@@ -705,7 +705,7 @@ const PathAddModal = ({ availableCourses, onAdd, onClose }) => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">説明 *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2 required-asterisk">説明</label>
             <textarea
               name="description"
               value={formData.description}
@@ -718,7 +718,7 @@ const PathAddModal = ({ availableCourses, onAdd, onClose }) => {
 
           <div className="grid md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">期間 *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2 required-asterisk">期間</label>
               <input
                 type="text"
                 name="duration"
@@ -731,7 +731,7 @@ const PathAddModal = ({ availableCourses, onAdd, onClose }) => {
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">ステータス</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">ステータス <span className="text-red-500">*</span></label>
               <select
                 name="status"
                 value={formData.status}
@@ -985,7 +985,7 @@ const PathEditModal = ({ path, availableCourses, onUpdate, onClose }) => {
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">ステータス</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">ステータス <span className="text-red-500">*</span></label>
               <select
                 name="status"
                 value={formData.status}

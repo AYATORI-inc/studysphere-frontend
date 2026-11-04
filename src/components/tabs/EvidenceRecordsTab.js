@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getCaptureRecords, getSatelliteHomeSupportUsers } from '../../utils/api';
 import { getCurrentUser } from '../../utils/userContext';
+import { API_BASE_URL } from '../../config/apiConfig';
 
 const EvidenceRecordsTab = ({ 
   handleUserInputClick, 
@@ -125,36 +126,46 @@ const EvidenceRecordsTab = ({
         if (response.success && response.data) {
           setRecords(response.data.records || []);
           
-          // 各ユーザーの日報データを取得して状況を判定
+          // 各レコードの日報データを取得して状況を判定（ユーザーIDと日付の組み合わせで管理）
           const reports = {};
+          const uniqueCombinations = new Map();
+          
+          // ユニークなユーザーIDと日付の組み合わせを収集
           for (const record of response.data.records || []) {
-            if (!reports[record.user.id]) {
-              try {
-                const API_BASE_URL = process.env.REACT_APP_API_URL || 
-                  (window.location.hostname === 'studysphere.ayatori-inc.co.jp' 
-                    ? 'https://backend.studysphere.ayatori-inc.co.jp' 
-                    : 'http://localhost:5050');
-                
-                // ユーザーIDと日付で日報をフィルタリング
-                const reportResponse = await fetch(`${API_BASE_URL}/api/remote-support/daily-reports?userId=${record.user.id}&startDate=${record.date}&endDate=${record.date}`, {
-                  headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
-                    'Content-Type': 'application/json'
-                  }
-                });
-                
-                if (reportResponse.ok) {
-                  const reportData = await reportResponse.json();
-                  if (reportData.success && reportData.data && reportData.data.reports && reportData.data.reports.length > 0) {
-                    // 日報配列から最初のものを取得
-                    reports[record.user.id] = reportData.data.reports[0];
-                  }
-                }
-              } catch (err) {
-                console.error('日報データの取得エラー:', err);
-              }
+            const key = `${record.user.id}-${record.date}`;
+            if (!uniqueCombinations.has(key)) {
+              uniqueCombinations.set(key, {
+                userId: record.user.id,
+                date: record.date
+              });
             }
           }
+          
+          // 各ユニークな組み合わせに対して日報データを取得
+          const reportPromises = Array.from(uniqueCombinations.entries()).map(async ([key, { userId, date }]) => {
+            try {
+              // ユーザーIDと日付で日報をフィルタリング
+              const reportResponse = await fetch(`${API_BASE_URL}/api/remote-support/daily-reports?userId=${userId}&startDate=${date}&endDate=${date}`, {
+                headers: {
+                  'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
+                  'Content-Type': 'application/json'
+                }
+              });
+              
+              if (reportResponse.ok) {
+                const reportData = await reportResponse.json();
+                if (reportData.success && reportData.data && reportData.data.reports && reportData.data.reports.length > 0) {
+                  // 日報配列から最初のものを取得
+                  reports[key] = reportData.data.reports[0];
+                }
+              }
+            } catch (err) {
+              console.error(`日報データの取得エラー (ユーザーID: ${userId}, 日付: ${date}):`, err);
+            }
+          });
+          
+          // すべての日報データ取得を待つ
+          await Promise.all(reportPromises);
           setUserDailyReports(reports);
         } else {
           throw new Error(response.message || '記録データの取得に失敗しました');
@@ -173,7 +184,9 @@ const EvidenceRecordsTab = ({
 
   // 状況を判定する関数
   const getStatusText = (record) => {
-    const report = userDailyReports[record.user.id];
+    // ユーザーIDと日付の組み合わせで日報データを取得
+    const key = `${record.user.id}-${record.date}`;
+    const report = userDailyReports[key];
     
     if (!report) {
       return '始業打刻されていません';
@@ -182,15 +195,15 @@ const EvidenceRecordsTab = ({
     // 日報の状態を確認
     const hasMarkStart = report.mark_start;
     const hasMarkEnd = report.mark_end;
-    const hasMarkBreakStart = report.mark_break_start;
-    const hasMarkBreakEnd = report.mark_break_end;
+    const hasMarkLunchStart = report.mark_lunch_start;
+    const hasMarkLunchEnd = report.mark_lunch_end;
     
     // 状態の判定
     if (!hasMarkStart) {
       return '始業打刻されていません';
     } else if (hasMarkEnd) {
       return '業務終了しました';
-    } else if (hasMarkBreakStart && !hasMarkBreakEnd) {
+    } else if (hasMarkLunchStart && !hasMarkLunchEnd) {
       return '休憩中です';
     } else {
       return '作業中です';
@@ -403,7 +416,7 @@ const EvidenceRecordsTab = ({
                               })}
                               className="text-white text-sm px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 transition-colors duration-200"
                             >
-                              詳細
+                              写真
                             </button>
                           </div>
                         </td>

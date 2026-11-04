@@ -12,12 +12,20 @@ const HomeSupportRecordsPage = () => {
   const { currentUser } = useInstructorGuard();
   const [localUser, setLocalUser] = useState(currentUser);
   
+  // 日付をYYYY-MM-DD形式の文字列に変換（ローカルタイムゾーンで）
+  const formatDateToLocalString = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   // 日付範囲の初期値（今月の1日から今日まで）
   const today = new Date();
   const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
   
-  const [startDate, setStartDate] = useState(firstDayOfMonth.toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState(today.toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState(formatDateToLocalString(firstDayOfMonth));
+  const [endDate, setEndDate] = useState(formatDateToLocalString(today));
   const [dailyReports, setDailyReports] = useState([]);
   const [weeklyReports, setWeeklyReports] = useState([]);
   const [user, setUser] = useState(null);
@@ -27,6 +35,11 @@ const HomeSupportRecordsPage = () => {
   const [editingWeeklyReport, setEditingWeeklyReport] = useState(null);
   const [dailyEditForm, setDailyEditForm] = useState({});
   const [weeklyEditForm, setWeeklyEditForm] = useState({});
+  // ページネーション用のstate（フロントエンドで管理）
+  const [currentPage, setCurrentPage] = useState(1);
+  const [allDailyReports, setAllDailyReports] = useState([]); // 全件の日報
+  const [allWeeklyReports, setAllWeeklyReports] = useState([]); // 全件の週報
+  const itemsPerPage = 20; // 1ページあたりの件数
 
   // 拠点情報を復元
   useEffect(() => {
@@ -110,39 +123,75 @@ const HomeSupportRecordsPage = () => {
     fetchUser();
   }, [userId]);
 
-  // 記録を検索
+  // 記録を検索（全件取得）
   const searchRecords = async () => {
     if (!userId) return;
     
     setLoading(true);
     try {
-      // 日報を取得
+      // デバッグ: リクエストパラメータを確認
+      console.log('🔍 日報取得リクエスト:', {
+        userId,
+        userIdType: typeof userId,
+        startDate,
+        endDate,
+        url: `/api/remote-support/daily-reports?userId=${userId}&startDate=${startDate}&endDate=${endDate}&limit=0`
+      });
+      
+      // 日報を全件取得（limit=0で全件取得を指定）
       const dailyResponse = await apiCall(
-        `/api/remote-support/daily-reports?userId=${userId}&startDate=${startDate}&endDate=${endDate}`,
+        `/api/remote-support/daily-reports?userId=${userId}&startDate=${startDate}&endDate=${endDate}&limit=0`,
         { method: 'GET' }
       );
       
+      console.log('📥 日報APIレスポンス:', {
+        success: dailyResponse.success,
+        hasData: !!dailyResponse.data,
+        reportsCount: dailyResponse.data?.reports?.length || 0
+      });
+      
       if (dailyResponse.success && dailyResponse.data) {
-        setDailyReports(dailyResponse.data.reports || []);
+        const reports = dailyResponse.data.reports || [];
+        console.log('日報取得成功:', {
+          count: reports.length,
+          startDate,
+          endDate,
+          userId,
+          reports: reports.map(r => ({ id: r.id, date: r.date, user_id: r.user_id }))
+        });
+        // ID: 7と8が含まれているか確認
+        const targetIds = [7, 8];
+        const foundTargets = reports.filter(r => targetIds.includes(r.id));
+        if (foundTargets.length > 0) {
+          console.log('✅ 対象レコード（ID: 7, 8）が見つかりました:', foundTargets.map(r => ({ id: r.id, date: r.date, user_id: r.user_id })));
+        } else {
+          console.warn('⚠️ 対象レコード（ID: 7, 8）が見つかりませんでした');
+        }
+        setAllDailyReports(reports);
       } else {
         console.error('日報取得エラー:', dailyResponse.message);
-        setDailyReports([]);
+        setAllDailyReports([]);
       }
 
-      // 週次評価を取得（期間を計算）
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      
+      // 週次評価を全件取得
       const weeklyResponse = await apiCall(
         `/api/weekly-evaluations/user/${userId}?periodStart=${startDate}&periodEnd=${endDate}`,
         { method: 'GET' }
       );
       
       if (weeklyResponse.success && weeklyResponse.data) {
-        setWeeklyReports(weeklyResponse.data || []);
+        const weeklyReports = weeklyResponse.data || [];
+        console.log('週報取得成功:', {
+          count: weeklyReports.length,
+          startDate,
+          endDate,
+          userId,
+          reports: weeklyReports.map(r => ({ id: r.id, date: r.date, user_id: r.user_id }))
+        });
+        setAllWeeklyReports(weeklyReports);
       } else {
         console.error('週次評価取得エラー:', weeklyResponse.message);
-        setWeeklyReports([]);
+        setAllWeeklyReports([]);
       }
     } catch (error) {
       console.error('記録取得エラー:', error);
@@ -154,9 +203,17 @@ const HomeSupportRecordsPage = () => {
 
   useEffect(() => {
     if (userId && startDate && endDate) {
+      setCurrentPage(1); // 日付範囲が変更されたら1ページ目に戻す
       searchRecords();
     }
   }, [userId, startDate, endDate]);
+
+  // ページ変更ハンドラー
+  const handlePageChange = (newPage) => {
+    setCurrentPage(newPage);
+    // ページトップにスクロール
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   // 日報の編集を開始
   const startEditDailyReport = (report) => {
@@ -179,20 +236,24 @@ const HomeSupportRecordsPage = () => {
       return `${year}-${month}-${day}`;
     };
 
+    // work_result/workResultが存在し、task_content/workContentが空の場合はwork_resultをtask_contentにコピー
+    const taskContent = report.task_content || report.workContent || report.work_result || report.workResult || '';
+    const workResult = report.work_result || report.workResult || '';
+    
     setDailyEditForm({
       temperature: report.temperature || '',
       condition: report.condition || '',
       condition_note: report.condition_note || '',
       work_note: report.work_note || '',
-      work_result: report.work_result || '',
-      daily_report: report.daily_report || '',
-      support_method: report.support_method || '',
-      support_method_note: report.support_method_note || '',
-      task_content: report.task_content || '',
-      support_content: report.support_content || '',
+      work_result: workResult,
+      daily_report: report.daily_report || report.dailyReport || '',
+      support_method: report.support_method || report.supportMethod || '',
+      support_method_note: report.support_method_note || report.supportMethodNote || '',
+      task_content: taskContent,
+      support_content: report.support_content || report.supportContent || '',
       advice: report.advice || '',
-      instructor_comment: report.instructor_comment || '',
-      recorder_name: report.recorder_name || '',
+      instructor_comment: report.instructor_comment || report.instructorComment || '',
+      recorder_name: report.recorder_name || report.recorderName || '',
       report_date: formatDateForInput(report.date), // 日報の日付を保存
       mark_start: formatTimeForInput(report.mark_start),
       mark_lunch_start: formatTimeForInput(report.mark_lunch_start),
@@ -446,13 +507,14 @@ const HomeSupportRecordsPage = () => {
     setWeeklyEditForm({});
   };
 
-  // Excelダウンロード処理
+  // Excelダウンロード処理（指定期間内の全件をダウンロード）
   const handleDownloadExcel = async () => {
     if (!user) {
       alert('利用者情報が取得できません。');
       return;
     }
 
+    // allRecordsは指定期間（startDate〜endDate）内の日報と週報の全件を含む
     if (allRecords.length === 0) {
       alert('ダウンロードする記録がありません。');
       return;
@@ -1076,11 +1138,12 @@ const HomeSupportRecordsPage = () => {
               
               // 作業・訓練内容の処理（D列から開始）
               if ((cellValue.includes('作業') && cellValue.includes('訓練')) || cellValue.includes('作業内容') || cellValue.includes('訓練内容')) {
-                if (record.task_content) {
+                const workContent = record.task_content || record.workContent || record.work_result || record.workResult;
+                if (workContent) {
                   // D列（4列目）から開始
                   const contentCell = worksheet.getCell(row, 4); // D列
                   if (contentCell.value === null || contentCell.value === '') {
-                    contentCell.value = record.task_content;
+                    contentCell.value = workContent;
                     contentCell.font = { ...(contentCell.font || {}), size: 10 };
                   }
                 }
@@ -1408,14 +1471,50 @@ const HomeSupportRecordsPage = () => {
   // 評価日を基準にソート（昇順：古い日付から新しい日付へ）
   // 評価日が同じ場合、週報を日報より前に配置（評価日が10/30なら、10/31の日報の前に来る）
   const allRecords = [
-    ...dailyReports.map(r => ({ ...r, type: 'daily', sortDate: new Date(r.date) })),
-    ...weeklyReports.map(r => ({ 
-      ...r, 
-      type: 'weekly', 
-      // 評価日（date）を基準にソート
-      sortDate: new Date(r.date || r.period_end || r.created_at)
-    }))
-  ].sort((a, b) => {
+    ...allDailyReports.map(r => {
+      const sortDate = new Date(r.date);
+      // デバッグ: 日付パース結果を確認
+      if (r.id === 7 || r.id === 8) {
+        console.log('日報レコード日付パース:', {
+          id: r.id,
+          user_id: r.user_id,
+          originalDate: r.date,
+          dateType: typeof r.date,
+          sortDate: sortDate,
+          sortDateISO: sortDate.toISOString(),
+          sortDateLocal: sortDate.toLocaleDateString('ja-JP'),
+          isValid: !isNaN(sortDate.getTime())
+        });
+      }
+      return { ...r, type: 'daily', sortDate };
+    }),
+    ...allWeeklyReports.map(r => {
+      const dateStr = r.date || r.period_end || r.created_at;
+      const sortDate = new Date(dateStr);
+      return { 
+        ...r, 
+        type: 'weekly', 
+        // 評価日（date）を基準にソート
+        sortDate
+      };
+    })
+  ].filter(r => {
+    // 無効な日付のレコードを除外
+    const isValid = !isNaN(r.sortDate.getTime());
+    if (!isValid) {
+      console.warn('無効な日付のレコードを除外:', { id: r.id, type: r.type, date: r.date });
+    }
+    if (r.id === 7 || r.id === 8) {
+      console.log('フィルタ後のレコード:', {
+        id: r.id,
+        type: r.type,
+        date: r.date,
+        sortDate: r.sortDate,
+        isValid
+      });
+    }
+    return isValid;
+  }).sort((a, b) => {
     // 日付を比較（昇順：古い日付から新しい日付へ）
     const dateDiff = a.sortDate.getTime() - b.sortDate.getTime();
     
@@ -1427,6 +1526,36 @@ const HomeSupportRecordsPage = () => {
     
     return dateDiff;
   });
+
+  // ページネーション計算
+  const totalRecords = allRecords.length;
+  const totalPages = Math.ceil(totalRecords / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedRecords = allRecords.slice(startIndex, endIndex);
+  
+  // デバッグ: 全レコードの日付を確認
+  if (allDailyReports.length > 0 || allWeeklyReports.length > 0) {
+    const targetIds = [7, 8];
+    const foundInAllRecords = allRecords.filter(r => targetIds.includes(r.id));
+    console.log('allRecords計算結果:', {
+      totalRecords,
+      totalPages,
+      currentPage,
+      startIndex,
+      endIndex,
+      allDailyReportsCount: allDailyReports.length,
+      allWeeklyReportsCount: allWeeklyReports.length,
+      allRecordsDates: allRecords.map(r => ({ id: r.id, type: r.type, date: r.date, sortDate: r.sortDate.toISOString().split('T')[0] })),
+      targetRecordsInAllRecords: foundInAllRecords.length > 0 ? foundInAllRecords.map(r => ({ id: r.id, date: r.date, sortDate: r.sortDate.toISOString().split('T')[0] })) : '見つかりませんでした'
+    });
+    if (foundInAllRecords.length === 0) {
+      console.warn('⚠️ allRecordsにID: 7, 8が含まれていません');
+      // allDailyReportsに含まれているか確認
+      const foundInDaily = allDailyReports.filter(r => targetIds.includes(r.id));
+      console.log('allDailyReports内の確認:', foundInDaily.length > 0 ? foundInDaily.map(r => ({ id: r.id, date: r.date })) : '見つかりませんでした');
+    }
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
@@ -1516,8 +1645,8 @@ const HomeSupportRecordsPage = () => {
                 const today = new Date();
                 const weekAgo = new Date(today);
                 weekAgo.setDate(weekAgo.getDate() - 7);
-                setStartDate(weekAgo.toISOString().split('T')[0]);
-                setEndDate(today.toISOString().split('T')[0]);
+                setStartDate(formatDateToLocalString(weekAgo));
+                setEndDate(formatDateToLocalString(today));
               }}
               className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
             >
@@ -1527,8 +1656,8 @@ const HomeSupportRecordsPage = () => {
               onClick={() => {
                 const today = new Date();
                 const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-                setStartDate(firstDay.toISOString().split('T')[0]);
-                setEndDate(today.toISOString().split('T')[0]);
+                setStartDate(formatDateToLocalString(firstDay));
+                setEndDate(formatDateToLocalString(today));
               }}
               className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
             >
@@ -1539,8 +1668,8 @@ const HomeSupportRecordsPage = () => {
                 const today = new Date();
                 const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
                 const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
-                setStartDate(lastMonthStart.toISOString().split('T')[0]);
-                setEndDate(lastMonthEnd.toISOString().split('T')[0]);
+                setStartDate(formatDateToLocalString(lastMonthStart));
+                setEndDate(formatDateToLocalString(lastMonthEnd));
               }}
               className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
             >
@@ -1585,7 +1714,7 @@ const HomeSupportRecordsPage = () => {
             </div>
           ) : (
             <div className="space-y-6">
-              {allRecords.map((record) => (
+              {paginatedRecords.map((record) => (
                 <div 
                   key={`${record.type}-${record.id}`} 
                   className="border-2 border-gray-300 rounded-lg p-6 print:break-inside-avoid print:page-break-inside-avoid"
@@ -1689,7 +1818,7 @@ const HomeSupportRecordsPage = () => {
                             )}
                           </div>
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">作業内容</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">作業・訓練内容</label>
                             <textarea
                               value={dailyEditForm.task_content || ''}
                               onChange={(e) => setDailyEditForm({ ...dailyEditForm, task_content: e.target.value })}
@@ -1761,7 +1890,7 @@ const HomeSupportRecordsPage = () => {
                                 <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">作業・訓練内容</span>
                               </h4>
                               <div className="bg-gray-50 rounded-lg p-3 whitespace-pre-wrap text-sm text-gray-700">
-                                {record.task_content || '-'}
+                                {record.task_content || record.workContent || record.work_result || record.workResult || '-'}
                               </div>
                             </div>
 
@@ -1978,6 +2107,74 @@ const HomeSupportRecordsPage = () => {
                   )}
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* ページネーション */}
+          {!loading && totalRecords > 0 && (
+            <div className="mt-6 flex items-center justify-center gap-2 print:hidden">
+              <button
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className={`px-4 py-2 rounded-lg font-medium ${
+                  currentPage === 1
+                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                    : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                }`}
+              >
+                前へ
+              </button>
+              
+              <div className="flex items-center gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(page => {
+                    // 現在のページ周辺と最初・最後のページを表示
+                    return (
+                      page === 1 ||
+                      page === totalPages ||
+                      (page >= currentPage - 2 && page <= currentPage + 2)
+                    );
+                  })
+                  .map((page, index, array) => {
+                    // 前のページとの間に「...」を挿入
+                    const prevPage = array[index - 1];
+                    const showEllipsis = prevPage && page - prevPage > 1;
+                    
+                    return (
+                      <React.Fragment key={page}>
+                        {showEllipsis && (
+                          <span className="px-2 text-gray-500">...</span>
+                        )}
+                        <button
+                          onClick={() => handlePageChange(page)}
+                          className={`px-4 py-2 rounded-lg font-medium ${
+                            currentPage === page
+                              ? 'bg-indigo-600 text-white'
+                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      </React.Fragment>
+                    );
+                  })}
+              </div>
+              
+              <button
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className={`px-4 py-2 rounded-lg font-medium ${
+                  currentPage === totalPages
+                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                    : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                }`}
+              >
+                次へ
+              </button>
+              
+              <span className="ml-4 text-sm text-gray-600">
+                {totalRecords}件中 {startIndex + 1}〜{Math.min(endIndex, totalRecords)}件を表示
+              </span>
             </div>
           )}
         </div>

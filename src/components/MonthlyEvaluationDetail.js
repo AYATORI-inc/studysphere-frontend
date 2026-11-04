@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiCall } from '../utils/api';
+import { normalizeSatelliteId, getCurrentUserSatelliteId } from '../utils/locationUtils';
+import { getCurrentUser } from '../utils/userContext';
 
 const MonthlyEvaluationDetail = ({ student, report, onSave, onEdit, onDelete, onDownloadPDF }) => {
   const [isEditing, setIsEditing] = useState(false);
@@ -102,10 +104,22 @@ const MonthlyEvaluationDetail = ({ student, report, onSave, onEdit, onDelete, on
   // 指導員リストを取得
   useEffect(() => {
     const fetchInstructors = async () => {
-      if (!student?.satellite_id && !student?.location?.id) return;
-      
+      let satelliteId = normalizeSatelliteId(student?.satellite_id ?? student?.location?.id);
+      if (!satelliteId) {
+        const savedSatellite = sessionStorage.getItem('selectedSatellite');
+        if (savedSatellite) {
+          try {
+            const parsed = JSON.parse(savedSatellite);
+            satelliteId = normalizeSatelliteId(parsed?.id);
+          } catch (error) {
+            console.error('selectedSatelliteのパースエラー:', error);
+          }
+        }
+      }
+
+      if (!satelliteId) return;
+
       try {
-        const satelliteId = student.satellite_id || student.location?.id;
         const response = await apiCall(`/api/users/satellite/${satelliteId}/weekly-evaluation-instructors`, {
           method: 'GET'
         });
@@ -172,21 +186,35 @@ const MonthlyEvaluationDetail = ({ student, report, onSave, onEdit, onDelete, on
         backendData.period_end = backendData.period_end || defaults.end;
       }
 
+      // 現在選択中の拠点IDを取得
+      const currentUser = getCurrentUser();
+      const currentSatelliteId = getCurrentUserSatelliteId(currentUser);
+      
+      // 拠点IDをリクエストに含める
+      const requestData = report?.id 
+        ? backendData
+        : {
+            ...backendData,
+            user_id: student.id
+          };
+      
+      // 現在選択中の拠点IDがある場合は追加
+      if (currentSatelliteId) {
+        requestData.satellite_id = currentSatelliteId;
+      }
+
       let response;
       if (report?.id) {
         // 更新
         response = await apiCall(`/api/monthly-evaluations/${report.id}`, {
           method: 'PUT',
-          body: JSON.stringify(backendData)
+          body: JSON.stringify(requestData)
         });
       } else {
         // 作成
         response = await apiCall('/api/monthly-evaluations', {
           method: 'POST',
-          body: JSON.stringify({
-            ...backendData,
-            user_id: student.id
-          })
+          body: JSON.stringify(requestData)
         });
       }
 
@@ -213,7 +241,20 @@ const MonthlyEvaluationDetail = ({ student, report, onSave, onEdit, onDelete, on
       }
     } catch (error) {
       console.error('保存エラー:', error);
-      alert('保存中にエラーが発生しました: ' + error.message);
+      let errorMessage = '保存中にエラーが発生しました: ' + error.message;
+      
+      // エラーレスポンスにデバッグ情報がある場合は表示
+      if (error.response?.data) {
+        const errorData = error.response.data;
+        errorMessage = errorData.message || errorMessage;
+        
+        if (errorData.debug) {
+          console.error('保存エラー詳細（デバッグ情報）:', errorData.debug);
+          errorMessage += `\n\nデバッグ情報:\n利用者拠点ID: ${JSON.stringify(errorData.debug.user_satellite_ids)}\n指導員拠点ID: ${JSON.stringify(errorData.debug.instructor_satellite_ids)}\n選択中拠点ID: ${errorData.debug.selected_satellite_id} (ステータス: ${error.status || 400})`;
+        }
+      }
+      
+      alert(errorMessage);
     } finally {
       setIsLoading(false);
     }

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#000000">
+    <title>StudySphere Support App - インストーラー一覧</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <div class="header-inner">
+            <a href="https://www.ayatori-inc.co.jp/" target="_blank" rel="noopener noreferrer" class="header-logo">AYATORI.Inc</a>
+            <nav class="header-nav">
+                <a href="https://ayatori-inc.co.jp/LP-AISchool/" class="nav-link">主要機能</a>
+                <a href="https://www.ayatori-inc.co.jp/StudySphere-Support/" class="nav-link">サポート</a>
+                <a href="https://ayatori-inc.co.jp/LP-remote-support/" class="nav-link">在宅支援</a>
+                <a href="https://www.ayatori-inc.co.jp/?page_id=7" target="_blank" rel="noopener noreferrer" class="nav-link">問い合わせ</a>
+                <a href="https://studysphere.ayatori-inc.co.jp/homepage" class="nav-link">トップへ戻る</a>
+            </nav>
+            <button type="button" class="nav-toggle" id="navToggle" aria-label="メニューを開く">
+                <span class="nav-toggle-bar"></span>
+                <span class="nav-toggle-bar"></span>
+                <span class="nav-toggle-bar"></span>
+            </button>
+        </div>
+        <div class="header-nav-mobile" id="navMobile" aria-hidden="true">
+            <a href="https://ayatori-inc.co.jp/LP-AISchool/" class="nav-link">主要機能</a>
+            <a href="https://www.ayatori-inc.co.jp/StudySphere-Support/" class="nav-link">サポート</a>
+            <a href="https://ayatori-inc.co.jp/LP-remote-support/" class="nav-link">在宅支援</a>
+            <a href="https://www.ayatori-inc.co.jp/?page_id=7" target="_blank" rel="noopener noreferrer" class="nav-link">問い合わせ</a>
+            <a href="https://studysphere.ayatori-inc.co.jp/homepage" class="nav-link">トップへ戻る</a>
+        </div>
+    </header>
+    
+    <main>
+        <div class="container">
+            <h1>StudySphere Support App</h1>
+            <p class="subtitle">リモートサポートアプリケーション インストーラー</p>
+            
+            <ul class="file-list">
+                <li class="file-item latest">
+                    <a href="RemoteSupportApp Setup 1.4.1.exe" class="file-link" download>
+                        <span class="file-name">RemoteSupportApp Setup 1.4.1.exe</span>
+                        <div class="file-info">
+                            <span class="badge badge-latest">Windows版</span>
+                            <span class="download-icon">⬇️</span>
+                        </div>
+                    </a>
+                </li>
+            </ul>
+            <div class="instructions">
+                <h2>📥 インストール手順（Windows版）</h2>
+                <ol>
+                    <li>上の「Windows版」をクリックして、インストーラーをダウンロードします</li>
+                    <li>ダウンロードしたファイル（.exe）を実行します</li>
+                    <li>インストールウィザードの案内に従って、インストールを完了します</li>
+                    <li>インストールが終わったらアプリを起動し、ログイン画面でスタッフから受け取ったトークンを貼り付けてログインします</li>
+                    <li>古いバージョンのアプリがインストールされている場合は、手動でアンインストールしてください</li>
+                </ol>
+            </div>
+        </div>
+    </main>
+    
+    <footer>
+        <div class="footer-inner">
+            <p>Copyright© AYATORI.inc All Rights Reserved.</p>
+        </div>
+    </footer>
+    <script>
+        (function() {
+            var toggle = document.getElementById('navToggle');
+            var nav = document.getElementById('navMobile');
+            if (toggle && nav) {
+                toggle.addEventListener('click', function() {
+                    var open = nav.getAttribute('aria-hidden') !== 'true';
+                    nav.setAttribute('aria-hidden', open);
+                    toggle.setAttribute('aria-label', open ? 'メニューを開く' : 'メニューを閉じる');
+                    toggle.classList.toggle('is-open', !open);
+                });
+            }
+        })();
+    </script>
+</body>
+</html>

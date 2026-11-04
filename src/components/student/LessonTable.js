@@ -1,6 +1,6 @@
 import React from 'react';
 
-const LessonTable = ({ lessons, onStartLesson, onViewExamResults, onSubmitAssignment, currentLessonId, testResults }) => {
+const LessonTable = ({ lessons, onStartLesson, onViewExamResults, onSubmitAssignment, currentLessonId, testResults, isPreview = false }) => {
   // レッスン進行状況の取得
   const getLessonStatus = (lesson) => {
     const status = lesson.progress_status || 'not_started';
@@ -100,8 +100,12 @@ const LessonTable = ({ lessons, onStartLesson, onViewExamResults, onSubmitAssign
                   </td>
                   <td className="px-4 py-3 text-center">
                     {lesson.has_assignment === 1 || lesson.has_assignment === true ? (
-                      lesson.assignment_submitted === 1 || lesson.assignment_submitted === true ? (
+                      lesson.assignment_approved === 1 || lesson.assignment_approved === true ? (
+                        <span className="text-blue-600 font-medium">承認済</span>
+                      ) : lesson.assignment_submitted === 1 || lesson.assignment_submitted === true ? (
                         <span className="text-green-600 font-medium">提出済み</span>
+                      ) : lesson.assignment_submitted_at !== null && lesson.assignment_submitted_at !== undefined ? (
+                        <span className="text-orange-600 font-medium">再提出</span>
                       ) : (
                         <span className="text-yellow-600 font-medium">未提出</span>
                       )
@@ -119,18 +123,42 @@ const LessonTable = ({ lessons, onStartLesson, onViewExamResults, onSubmitAssign
                       </button>
                       {/* 試験結果一覧ボタン（常に表示） */}
                       <button
-                        className="px-3 py-1 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg font-medium hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
-                        onClick={() => onViewExamResults(lesson)}
+                        className={`px-3 py-1 rounded-lg font-medium transition-all duration-200 ${
+                          isPreview
+                            ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                            : 'bg-gradient-to-r from-green-500 to-green-600 text-white hover:shadow-lg hover:-translate-y-0.5'
+                        }`}
+                        onClick={() => {
+                          if (isPreview) return;
+                          onViewExamResults(lesson);
+                        }}
+                        disabled={isPreview}
+                        title={isPreview ? 'プレビューでは利用できません' : '試験結果一覧'}
                       >
                         📝 試験結果一覧
                       </button>
                       {(lesson.has_assignment === 1 || lesson.has_assignment === true) && 
                        !(lesson.assignment_submitted === 1 || lesson.assignment_submitted === true) && (
                         <button
-                          className="px-3 py-1 bg-gradient-to-r from-yellow-500 to-yellow-600 text-white rounded-lg font-medium hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
-                          onClick={() => onSubmitAssignment(lesson)}
+                          className={`px-3 py-1 rounded-lg font-medium transition-all duration-200 ${
+                            isPreview
+                              ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                              : (
+                                lesson.assignment_submitted_at !== null && lesson.assignment_submitted_at !== undefined
+                                  ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:shadow-lg hover:-translate-y-0.5'
+                                  : 'bg-gradient-to-r from-yellow-500 to-yellow-600 text-white hover:shadow-lg hover:-translate-y-0.5'
+                              )
+                          }`}
+                          onClick={() => {
+                            if (isPreview) return;
+                            onSubmitAssignment(lesson);
+                          }}
+                          disabled={isPreview}
+                          title={isPreview ? 'プレビューでは利用できません' : '課題提出'}
                         >
-                          📄 課題提出
+                          {lesson.assignment_submitted_at !== null && lesson.assignment_submitted_at !== undefined
+                            ? '📄 課題再提出'
+                            : '📄 課題提出'}
                         </button>
                       )}
                     </div>

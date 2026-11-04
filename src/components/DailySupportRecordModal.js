@@ -18,10 +18,10 @@ const DailySupportRecordModal = ({
   aiAssist 
 }) => {
   const [record, setRecord] = useState({
-    startTime: '10:00',
-    endTime: '16:00',
-    breakStartTime: '12:00',
-    breakEndTime: '13:00',
+    startTime: '',
+    endTime: '',
+    breakStartTime: '',
+    breakEndTime: '',
     supportMethod: '電話',
     supportMethodOther: '',
     workContent: '',
@@ -44,6 +44,20 @@ const DailySupportRecordModal = ({
 
   useEffect(() => {
     if (isOpen && student) {
+      // モーダルが開かれた時に初期状態をリセット
+      setRecord({
+        startTime: '',
+        endTime: '',
+        breakStartTime: '',
+        breakEndTime: '',
+        supportMethod: '電話',
+        supportMethodOther: '',
+        workContent: '',
+        supportContent: '',
+        healthStatus: '',
+        responder: '',
+        remarks: ''
+      });
       fetchUserData();
       fetchInstructors();
       fetchSupportPlan();
@@ -104,10 +118,10 @@ const DailySupportRecordModal = ({
         if (healthResult.data) {
           setRecord(prev => ({
             ...prev,
-            startTime: healthResult.data.mark_start ? new Date(healthResult.data.mark_start).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : prev.startTime,
-            endTime: healthResult.data.mark_end ? new Date(healthResult.data.mark_end).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : prev.endTime,
-            breakStartTime: healthResult.data.mark_lunch_start ? new Date(healthResult.data.mark_lunch_start).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : prev.breakStartTime,
-            breakEndTime: healthResult.data.mark_lunch_end ? new Date(healthResult.data.mark_lunch_end).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : prev.breakEndTime
+            startTime: healthResult.data.mark_start ? new Date(healthResult.data.mark_start).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : '',
+            endTime: healthResult.data.mark_end ? new Date(healthResult.data.mark_end).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : '',
+            breakStartTime: healthResult.data.mark_lunch_start ? new Date(healthResult.data.mark_lunch_start).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : '',
+            breakEndTime: healthResult.data.mark_lunch_end ? new Date(healthResult.data.mark_lunch_end).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : ''
           }));
         }
       }
@@ -157,10 +171,6 @@ const DailySupportRecordModal = ({
     setAiSuggesting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const API_BASE_URL = process.env.REACT_APP_API_URL || 
-        (window.location.hostname === 'studysphere.ayatori-inc.co.jp' 
-          ? 'https://backend.studysphere.ayatori-inc.co.jp' 
-          : 'http://localhost:5050');
 
       const response = await fetch(`${API_BASE_URL}/api/ai/suggest-work-content`, {
         method: 'POST',
@@ -196,10 +206,6 @@ const DailySupportRecordModal = ({
     setAiSuggestingSupport(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const API_BASE_URL = process.env.REACT_APP_API_URL || 
-        (window.location.hostname === 'studysphere.ayatori-inc.co.jp' 
-          ? 'https://backend.studysphere.ayatori-inc.co.jp' 
-          : 'http://localhost:5050');
 
       const supportPlanText = supportPlan ? 
         `【短期目標】${supportPlan.short_term_goal || '未設定'}\n【長期目標】${supportPlan.long_term_goal || '未設定'}\n【課題】${supportPlan.issues || '未設定'}` : 
@@ -246,10 +252,6 @@ const DailySupportRecordModal = ({
     setAiSuggestingAdvice(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const API_BASE_URL = process.env.REACT_APP_API_URL || 
-        (window.location.hostname === 'studysphere.ayatori-inc.co.jp' 
-          ? 'https://backend.studysphere.ayatori-inc.co.jp' 
-          : 'http://localhost:5050');
 
       const response = await fetch(`${API_BASE_URL}/api/ai/suggest-advice`, {
         method: 'POST',
@@ -325,12 +327,20 @@ const DailySupportRecordModal = ({
         return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
       };
 
+      // 時間フィールドが空文字列や空白の場合はnullに変換するヘルパー関数
+      const normalizeTimeField = (timeValue) => {
+        if (!timeValue || (typeof timeValue === 'string' && timeValue.trim() === '')) {
+          return null;
+        }
+        return convertTimeToMySQLDateTimeUTC(timeValue);
+      };
+
       // データを送信（UTC変換）
       const result = await updateUserDailyReport(reportId, {
-        mark_start: record.startTime ? convertTimeToMySQLDateTimeUTC(record.startTime) : null,
-        mark_end: record.endTime ? convertTimeToMySQLDateTimeUTC(record.endTime) : null,
-        mark_lunch_start: record.breakStartTime ? convertTimeToMySQLDateTimeUTC(record.breakStartTime) : null,
-        mark_lunch_end: record.breakEndTime ? convertTimeToMySQLDateTimeUTC(record.breakEndTime) : null,
+        mark_start: normalizeTimeField(record.startTime),
+        mark_end: normalizeTimeField(record.endTime),
+        mark_lunch_start: normalizeTimeField(record.breakStartTime),
+        mark_lunch_end: normalizeTimeField(record.breakEndTime),
         support_method: record.supportMethod,
         support_method_note: record.supportMethodOther,
         work_result: record.workContent,
@@ -471,16 +481,23 @@ const DailySupportRecordModal = ({
 
             {/* 作業・訓練内容 */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
-                <span>作業・訓練内容 <span className="text-red-500">*</span></span>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-sm font-medium text-gray-700">
+                  作業・訓練内容 <span className="text-red-500">*</span>
+                </label>
                 <button
-                  onClick={handleAISuggestWork}
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleAISuggestWork();
+                  }}
                   disabled={aiSuggesting || !workNote}
                   className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-all duration-200"
                 >
                   {aiSuggesting ? '🤖 生成中...' : '🤖 AI提案'}
                 </button>
-              </label>
+              </div>
               <p className="text-xs text-gray-500 mb-2">実施した作業や訓練の内容を記録してください</p>
               <textarea
                 value={record.workContent}
@@ -493,16 +510,23 @@ const DailySupportRecordModal = ({
 
             {/* 支援内容（1日2回以上） */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
-                <span>支援内容（1日2回以上） <span className="text-red-500">*</span></span>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-sm font-medium text-gray-700">
+                  支援内容（1日2回以上） <span className="text-red-500">*</span>
+                </label>
                 <button
-                  onClick={handleAISuggestSupport}
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleAISuggestSupport();
+                  }}
                   disabled={aiSuggestingSupport || !record.startTime || !record.endTime || !record.supportMethod}
                   className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-all duration-200"
                 >
                   {aiSuggestingSupport ? '🤖 生成中...' : '🤖 AI提案'}
                 </button>
-              </label>
+              </div>
               <p className="text-xs text-gray-500 mb-2">
                 時系列で複数回（2回以上）の支援・連絡内容を記録してください
               </p>
@@ -517,16 +541,23 @@ const DailySupportRecordModal = ({
 
             {/* 対象者の心身の状況及びそれに対する助言の内容 */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
-                <span>対象者の心身の状況及びそれに対する助言の内容 <span className="text-red-500">*</span></span>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-sm font-medium text-gray-700">
+                  対象者の心身の状況及びそれに対する助言の内容 <span className="text-red-500">*</span>
+                </label>
                 <button
-                  onClick={handleAISuggestAdvice}
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleAISuggestAdvice();
+                  }}
                   disabled={aiSuggestingAdvice || !healthData?.condition || !record.remarks}
                   className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-all duration-200"
                 >
                   {aiSuggestingAdvice ? '🤖 生成中...' : '🤖 AI提案'}
                 </button>
-              </label>
+              </div>
               <p className="text-xs text-gray-500 mb-2">時系列で体調確認と助言内容を記録してください</p>
               <textarea
                 value={record.healthStatus}

@@ -6,11 +6,7 @@ import { useAuth } from './contexts/AuthContext';
 import { isExpired, getCurrentJapanTime } from '../utils/dateUtils';
 import ModalErrorDisplay from './common/ModalErrorDisplay';
 // import { fetch } from '../utils/httpInterceptor'; // 一時的に無効化
-
-const API_BASE_URL = process.env.REACT_APP_API_URL || 
-  (window.location.hostname === 'studysphere.ayatori-inc.co.jp' 
-    ? 'https://backend.studysphere.ayatori-inc.co.jp' 
-    : 'http://localhost:5050');
+import { API_BASE_URL } from '../config/apiConfig';
 
 const LocationManagement = () => {
   const { currentUser } = useAuth();
@@ -66,6 +62,7 @@ const LocationManagement = () => {
   // 企業一覧（DBから取得）
   const [companies, setCompanies] = useState([]);
   const [companiesLoading, setCompaniesLoading] = useState(false);
+  const [editingCompany, setEditingCompany] = useState(null);
 
   // 管理者情報（DBから取得）
   const [managers, setManagers] = useState([]);
@@ -894,7 +891,7 @@ const LocationManagement = () => {
             const errorMessages = companyResult.errors.map(err => err.msg).join(', ');
             throw new Error(`組織の作成に失敗しました: ${errorMessages}`);
           }
-          throw new Error(companyResult.message || companyResult.error || '組織の作成に失敗しました');
+          throw new Error(companyResult.message || '組織の作成に失敗しました');
         }
         companyId = companyResult.data.id;
         showNotification('組織が正常に作成されました', 'success');
@@ -920,7 +917,7 @@ const LocationManagement = () => {
       const result = await response.json();
       console.log('拠点作成レスポンス:', result);
       if (!result.success) {
-        throw new Error(result.message || result.error || '拠点の追加に失敗しました');
+        throw new Error(result.message || '拠点の追加に失敗しました');
       }
       // トークン・有効期限をモーダルで表示
       setTokenModal({
@@ -1279,17 +1276,50 @@ const LocationManagement = () => {
     !facility.manager_ids || facility.manager_ids.length === 0
   ).length;
   
-  // 30日以内に期限切れになる事業所数
+  // 14日以内に期限切れになる事業所数
   const expiringSoonFacilities = facilities.filter(facility => {
     if (!facility.token_expiry_at) return false;
-    // バックエンドから返されるtoken_expiry_atは日本時間の文字列
-    // データベースから返される値は日本時間なので、UTCとして扱ってから日本時間に変換
-    const utcDate = new Date(facility.token_expiry_at + 'Z'); // UTCとして解釈
-    const japanExpiryDate = new Date(utcDate.getTime() + (9 * 60 * 60 * 1000)); // 日本時間に変換
-    const now = getCurrentJapanTime();
-    const diffTime = japanExpiryDate - now;
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays <= 30 && diffDays > 0;
+    
+    // 無効な日付値のチェック
+    if (facility.token_expiry_at === '0000-00-00 00:00:00' || 
+        facility.token_expiry_at === '0000-00-00' || 
+        facility.token_expiry_at === 'null' || 
+        facility.token_expiry_at === 'undefined' ||
+        facility.token_expiry_at === null ||
+        facility.token_expiry_at === undefined ||
+        facility.token_expiry_at === '' ||
+        facility.token_expiry_at === 'NULL' ||
+        facility.token_expiry_at === 'None') {
+      return false;
+    }
+    
+    try {
+      // 文字列でない場合は文字列に変換
+      const expiryString = String(facility.token_expiry_at).trim();
+      
+      // 空文字列のチェック
+      if (expiryString === '') {
+        return false;
+      }
+      
+      // 日本時間として直接解釈（UTC変換なし）- テーブル表示と同じロジック
+      const japanDate = new Date(expiryString);
+      
+      // 無効な日付かチェック
+      if (isNaN(japanDate.getTime())) {
+        return false;
+      }
+      
+      const now = getCurrentJapanTime();
+      const diffTime = japanDate - now;
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      // 14日以内かつまだ有効（0日より大きい）の場合にカウント
+      return diffDays <= 14 && diffDays > 0;
+    } catch (error) {
+      console.error('有効期限間近カウントエラー:', error, 'token_expiry_at:', facility.token_expiry_at);
+      return false;
+    }
   }).length;
 
   const filteredFacilities = getFilteredAndSortedFacilities();
@@ -1392,6 +1422,42 @@ const LocationManagement = () => {
     } catch (err) {
       console.error('企業トークン再生成エラー:', err);
       showNotification(err.message, 'error');
+    }
+  };
+
+  // 企業編集ハンドラー
+  const handleEditCompany = (company) => {
+    setEditingCompany({
+      id: company.id,
+      name: company.name || '',
+      address: company.address || '',
+      phone: company.phone || ''
+    });
+  };
+
+  // 企業更新ハンドラー
+  const handleUpdateCompany = async () => {
+    if (!editingCompany) return;
+    if (!editingCompany.name?.trim()) {
+      showNotification('企業名は必須です', 'error');
+      return;
+    }
+    try {
+      const result = await apiPut(`/api/companies/${editingCompany.id}`, {
+        name: editingCompany.name.trim(),
+        address: editingCompany.address?.trim() || '',
+        phone: editingCompany.phone?.trim() || ''
+      });
+      if (result?.success) {
+        showNotification(`「${editingCompany.name}」を更新しました`, 'success');
+        setEditingCompany(null);
+        await fetchCompanies();
+      } else {
+        throw new Error(result?.message || '企業の更新に失敗しました');
+      }
+    } catch (err) {
+      console.error('企業更新エラー:', err);
+      showNotification(err.message || '企業の更新に失敗しました', 'error');
     }
   };
 
@@ -1942,9 +2008,12 @@ const LocationManagement = () => {
             
             <input
               type="text"
-              placeholder="電話番号"
+              placeholder="03-1234-5678"
               value={newFacility.phone}
-              onChange={(e) => setNewFacility({...newFacility, phone: e.target.value})}
+              onChange={(e) => {
+                const val = e.target.value.replace(/[^0-9\-]/g, '');
+                setNewFacility({...newFacility, phone: val});
+              }}
             />
 
             {/* 担当者情報 */}
@@ -2054,7 +2123,7 @@ const LocationManagement = () => {
                     <h4>基本情報</h4>
                     <div className="form-row">
                       <div className="form-group">
-                        <label>事業所名 *</label>
+                        <label className="required-asterisk">事業所名</label>
                         <input
                           type="text"
                           value={editingFacilityData.name || ''}
@@ -2066,7 +2135,7 @@ const LocationManagement = () => {
                         />
                       </div>
                       <div className="form-group">
-                        <label>事業所タイプ *</label>
+                        <label className="required-asterisk">事業所タイプ</label>
                         <select
                           value={editingFacilityData.type || ''}
                           onChange={(e) => setEditingFacilityData({
@@ -2082,7 +2151,7 @@ const LocationManagement = () => {
                     </div>
                     <div className="form-row">
                       <div className="form-group">
-                        <label>住所 *</label>
+                        <label className="required-asterisk">住所</label>
                         <input
                           type="text"
                           value={editingFacilityData.address || ''}
@@ -2098,11 +2167,14 @@ const LocationManagement = () => {
                         <input
                           type="text"
                           value={editingFacilityData.phone || ''}
-                          onChange={(e) => setEditingFacilityData({
-                            ...editingFacilityData,
-                            phone: e.target.value
-                          })}
-                          placeholder="電話番号"
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/[^0-9\-]/g, '');
+                            setEditingFacilityData({
+                              ...editingFacilityData,
+                              phone: val
+                            });
+                          }}
+                          placeholder="03-1234-5678"
                         />
                       </div>
                     </div>
@@ -2188,7 +2260,7 @@ const LocationManagement = () => {
                     <h4>拠点基本情報</h4>
                     <div className="form-row">
                       <div className="form-group">
-                        <label>拠点名 *</label>
+                        <label className="required-asterisk">拠点名</label>
                         <input
                           type="text"
                           value={editValues.name || ''}
@@ -2197,7 +2269,7 @@ const LocationManagement = () => {
                         />
                       </div>
                       <div className="form-group">
-                        <label>住所 *</label>
+                        <label className="required-asterisk">住所</label>
                         <input
                           type="text"
                           value={editValues.address || ''}
@@ -2208,7 +2280,7 @@ const LocationManagement = () => {
                     </div>
                     <div className="form-row">
                       <div className="form-group">
-                        <label>最大利用者数 *</label>
+                        <label className="required-asterisk">最大利用者数</label>
                         <input
                           type="number"
                           value={editValues.maxStudents || ''}
@@ -2217,7 +2289,7 @@ const LocationManagement = () => {
                         />
                       </div>
                       <div className="form-group">
-                        <label>現在の利用者数 *</label>
+                        <label className="required-asterisk">現在の利用者数</label>
                         <input
                           type="number"
                           value={editValues.studentCount || ''}
@@ -2228,7 +2300,7 @@ const LocationManagement = () => {
                     </div>
                     <div className="form-row">
                       <div className="form-group">
-                        <label>現在の指導員数 *</label>
+                        <label className="required-asterisk">現在の指導員数</label>
                         <input
                           type="number"
                           value={editValues.teacherCount || ''}
@@ -2425,7 +2497,7 @@ const LocationManagement = () => {
                   /* 新規組織作成 */
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">組織名 *</label>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2 required-asterisk">組織名</label>
                       <SanitizedInput 
                         type="text" 
                         className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-400 transition-colors duration-300" 
@@ -2451,15 +2523,19 @@ const LocationManagement = () => {
                         type="text" 
                         className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-400 transition-colors duration-300" 
                         value={newCompany.phone} 
-                        onChange={e => setNewCompany({ ...newCompany, phone: e.target.value })} 
-                        sanitizeMode={SANITIZE_OPTIONS.LIGHT} 
+                        onChange={e => {
+                          const val = e.target.value.replace(/[^0-9\-]/g, '');
+                          setNewCompany({ ...newCompany, phone: val });
+                        }} 
+                        sanitizeMode={SANITIZE_OPTIONS.LIGHT}
+                        placeholder="03-1234-5678"
                       />
                     </div>
                   </div>
                 ) : (
                   /* 既存組織選択 */
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">組織 *</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2 required-asterisk">組織</label>
                     {companies.length === 0 ? (
                       <div className="w-full px-4 py-3 border-2 border-yellow-200 rounded-lg bg-yellow-50">
                         <p className="text-sm text-yellow-700 mb-2">
@@ -2500,7 +2576,7 @@ const LocationManagement = () => {
                 <h4 className="text-lg font-semibold text-gray-700 mb-4">事業所情報</h4>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">事業所名 *</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2 required-asterisk">事業所名</label>
                     <SanitizedInput 
                       type="text" 
                       className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-400 transition-colors duration-300" 
@@ -2511,7 +2587,7 @@ const LocationManagement = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">事業所タイプ *</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2 required-asterisk">事業所タイプ</label>
                     <select 
                       className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-400 transition-colors duration-300" 
                       value={newOffice.office_type_id} 
@@ -2557,12 +2633,16 @@ const LocationManagement = () => {
                       type="text" 
                       className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-400 transition-colors duration-300" 
                       value={newOffice.phone} 
-                      onChange={e => setNewOffice({ ...newOffice, phone: e.target.value })} 
-                      sanitizeMode={SANITIZE_OPTIONS.LIGHT} 
+                      onChange={e => {
+                        const val = e.target.value.replace(/[^0-9\-]/g, '');
+                        setNewOffice({ ...newOffice, phone: val });
+                      }} 
+                      sanitizeMode={SANITIZE_OPTIONS.LIGHT}
+                      placeholder="03-1234-5678"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">契約コース *</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2 required-asterisk">契約コース</label>
                     <select 
                       className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-400 transition-colors duration-300" 
                       value={newOffice.contract_type} 
@@ -2575,7 +2655,7 @@ const LocationManagement = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">利用者上限数 *</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2 required-asterisk">利用者上限数</label>
                     <input 
                       type="number" 
                       min="1" 
@@ -2808,7 +2888,11 @@ const LocationManagement = () => {
                 <input
                   type="text"
                   value={editFormData.phone || ''}
-                  onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/[^0-9\-]/g, '');
+                    setEditFormData({ ...editFormData, phone: val });
+                  }}
+                  placeholder="03-1234-5678"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-400"
                 />
               </div>
@@ -2969,7 +3053,7 @@ const LocationManagement = () => {
       {/* 企業一覧モーダル */}
       {showCompanyList && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
-          <div className="bg-white rounded-xl p-8 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto shadow-2xl">
+          <div className="bg-white rounded-xl p-8 w-full max-w-6xl mx-4 max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-2xl font-bold text-gray-800">企業一覧</h3>
               <button 
@@ -3023,6 +3107,13 @@ const LocationManagement = () => {
                               <td className="px-4 py-3">
                                 <div className="flex gap-2">
                                   <button 
+                                    onClick={() => handleEditCompany(company)}
+                                    className="px-3 py-1 bg-blue-500 text-white rounded text-sm font-medium transition-colors duration-300 hover:bg-blue-600"
+                                    title="企業を編集"
+                                  >
+                                    編集
+                                  </button>
+                                  <button 
                                     onClick={() => handleDeleteCompany(company)}
                                     className="px-3 py-1 bg-red-500 text-white rounded text-sm font-medium transition-colors duration-300 hover:bg-red-600"
                                     title="企業を削除"
@@ -3047,6 +3138,74 @@ const LocationManagement = () => {
                 className="flex-1 bg-gray-100 text-gray-700 border-2 border-gray-200 px-6 py-3 rounded-lg font-semibold transition-colors duration-300 hover:bg-gray-200"
               >
                 閉じる
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 企業編集モーダル */}
+      {editingCompany && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000]" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
+          <div className="bg-white rounded-xl p-8 w-full max-w-lg mx-4 shadow-2xl">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-bold text-gray-800">企業を編集</h3>
+              <button 
+                onClick={() => setEditingCompany(null)}
+                className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1 required-asterisk">企業名</label>
+                <input
+                  type="text"
+                  value={editingCompany.name}
+                  onChange={(e) => setEditingCompany(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="企業名を入力"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">住所</label>
+                <input
+                  type="text"
+                  value={editingCompany.address}
+                  onChange={(e) => setEditingCompany(prev => ({ ...prev, address: e.target.value }))}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="住所を入力"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">電話番号</label>
+                <input
+                  type="text"
+                  value={editingCompany.phone}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/[^0-9\-]/g, '');
+                    setEditingCompany(prev => ({ ...prev, phone: val }));
+                  }}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="03-1234-5678"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-4 pt-4 border-t border-gray-200">
+              <button 
+                onClick={() => setEditingCompany(null)} 
+                className="flex-1 bg-gray-100 text-gray-700 border-2 border-gray-200 px-6 py-3 rounded-lg font-semibold transition-colors duration-300 hover:bg-gray-200"
+              >
+                キャンセル
+              </button>
+              <button 
+                onClick={handleUpdateCompany} 
+                className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold transition-colors duration-300 hover:bg-blue-700"
+              >
+                保存
               </button>
             </div>
           </div>

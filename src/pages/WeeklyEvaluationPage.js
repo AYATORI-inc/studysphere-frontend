@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useInstructorGuard } from '../utils/hooks/useAuthGuard';
 import { API_BASE_URL } from '../config/apiConfig';
-import { getCurrentUserSatelliteId } from '../utils/locationUtils';
+import { getCurrentUserSatelliteId, normalizeSatelliteId } from '../utils/locationUtils';
+import { getCurrentUser } from '../utils/userContext';
+import { apiCall } from '../utils/api';
 
 /**
  * 評価(週次)作成画面
@@ -104,7 +106,7 @@ const WeeklyEvaluationPage = () => {
     const fetchInstructors = async () => {
       try {
         // まず生徒情報から拠点IDを取得
-        let satelliteId = student?.satellite_id;
+        let satelliteId = normalizeSatelliteId(student?.satellite_id);
         
         // 生徒情報にsatellite_idがない場合、satellite_idsから取得を試みる
         if (!satelliteId && student?.satellite_ids) {
@@ -117,15 +119,15 @@ const WeeklyEvaluationPage = () => {
             }
           }
           if (Array.isArray(satelliteIds) && satelliteIds.length > 0) {
-            satelliteId = satelliteIds[0];
+            satelliteId = normalizeSatelliteId(satelliteIds[0]);
           } else if (satelliteIds && !Array.isArray(satelliteIds)) {
-            satelliteId = satelliteIds;
+            satelliteId = normalizeSatelliteId(satelliteIds);
           }
         }
         
         // 生徒情報に拠点IDがない場合、現在選択中の拠点IDを取得
         if (!satelliteId && currentUser) {
-          satelliteId = getCurrentUserSatelliteId(currentUser);
+          satelliteId = normalizeSatelliteId(getCurrentUserSatelliteId(currentUser));
         }
         
         // セッションストレージからも取得を試みる
@@ -134,12 +136,14 @@ const WeeklyEvaluationPage = () => {
           if (savedSatellite) {
             try {
               const satellite = JSON.parse(savedSatellite);
-              satelliteId = satellite.id;
+              satelliteId = normalizeSatelliteId(satellite.id);
             } catch (e) {
               console.error('拠点情報のパースエラー:', e);
             }
           }
         }
+        
+        satelliteId = normalizeSatelliteId(satelliteId);
 
         if (!satelliteId) {
           console.warn('拠点IDが取得できません。指導員一覧を取得できません。');
@@ -366,22 +370,37 @@ const WeeklyEvaluationPage = () => {
     setExpandedRecords(newExpandedRecords);
   };
 
-  // AIで評価案を生成
-  const generateEvaluationWithAI = () => {
-    setIsGenerating(true);
-    
-    // AIによる評価案生成のシミュレーション
-    setTimeout(() => {
-      const suggestion = `・対象期間中の作業の進め方や、設定した目標の達成度を確認しました。
-・HTML/CSSの基礎学習は順調に進んでおり、レスポンシブデザインの理解も深まっています。
-・毎日の進捗確認を通じて、計画的に学習を進める習慣が身についてきました。
-・集中力が途切れることも少なく、適度な休憩を取りながら効率的に作業できています。
-・生活面では、規則正しい生活リズムを維持できており、体調も安定しています。
-・来週は、より実践的な課題に取り組み、スキルの定着を図っていく方針です。`;
-      
-      updateEvaluation('content', suggestion);
+  // AIで評価案を生成（バックエンドのAI APIを呼び出す）
+  const generateEvaluationWithAI = async () => {
+    if (!student?.id || !periodStart || !periodEnd) {
+      alert('対象期間を設定してください。');
+      return;
+    }
+
+    try {
+      setIsGenerating(true);
+      const response = await apiCall('/api/weekly-evaluation-ai/generate-evaluation-content', {
+        method: 'POST',
+        body: JSON.stringify({
+          user_id: student.id,
+          period_start: periodStart,
+          period_end: periodEnd,
+          evaluation_method: evaluationData.method === 'その他' ? evaluationData.methodOther : evaluationData.method,
+          recorder_name: evaluationData.recorder
+        })
+      });
+
+      if (response.success && response.data?.evaluation_content) {
+        updateEvaluation('content', response.data.evaluation_content);
+      } else {
+        alert('評価内容の生成に失敗しました: ' + (response.message || 'エラーが発生しました'));
+      }
+    } catch (error) {
+      console.error('AI評価内容生成エラー:', error);
+      alert('評価内容の生成中にエラーが発生しました: ' + error.message);
+    } finally {
       setIsGenerating(false);
-    }, 1500);
+    }
   };
 
   // 保存
@@ -392,24 +411,49 @@ const WeeklyEvaluationPage = () => {
         alert('認証トークンが見つかりません。ログインし直してください。');
         return;
       }
+      
+      // 現在選択中の拠点IDを取得
+      const currentUser = getCurrentUser();
+      const currentSatelliteId = getCurrentUserSatelliteId(currentUser);
+      
+      const requestBody = {
+        user_id: student.id,
+        date: new Date().toISOString().split('T')[0],
+        prev_eval_date: prevEvalDate && prevEvalDate.trim() !== '' ? prevEvalDate : null, // 空文字列の場合はnullに変換
+        period_start: periodStart,
+        period_end: periodEnd,
+        evaluation_method: evaluationData.method, // ENUM値（'通所', '訪問', 'その他'）をそのまま送信
+        method_other: evaluationData.method === 'その他' ? evaluationData.methodOther : null, // 「その他」の場合のみ補足情報を送信
+        evaluation_content: evaluationData.content,
+        recorder_name: evaluationData.recorder,
+        confirm_name: evaluationData.confirmer
+      };
+      
+      // 現在選択中の拠点IDがある場合は追加
+      if (currentSatelliteId) {
+        requestBody.satellite_id = currentSatelliteId;
+        console.log('週報保存 - 送信データにsatellite_idを追加:', {
+          satellite_id: currentSatelliteId,
+          satellite_id_type: typeof currentSatelliteId,
+          user_id: student.id,
+          requestBody
+        });
+      } else {
+        console.warn('週報保存 - satellite_idが取得できませんでした:', {
+          currentUser,
+          currentSatelliteId
+        });
+      }
+      
+      console.log('週報保存 - 送信するリクエストボディ:', JSON.stringify(requestBody, null, 2));
+      
       const response = await fetch(`${API_BASE_URL}/api/weekly-evaluations`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          user_id: student.id,
-          date: new Date().toISOString().split('T')[0],
-          prev_eval_date: prevEvalDate && prevEvalDate.trim() !== '' ? prevEvalDate : null, // 空文字列の場合はnullに変換
-          period_start: periodStart,
-          period_end: periodEnd,
-          evaluation_method: evaluationData.method, // ENUM値（'通所', '訪問', 'その他'）をそのまま送信
-          method_other: evaluationData.method === 'その他' ? evaluationData.methodOther : null, // 「その他」の場合のみ補足情報を送信
-          evaluation_content: evaluationData.content,
-          recorder_name: evaluationData.recorder,
-          confirm_name: evaluationData.confirmer
-        })
+        body: JSON.stringify(requestBody)
       });
 
       if (response.ok) {
@@ -433,6 +477,11 @@ const WeeklyEvaluationPage = () => {
             errorMessage = errorData.message || errorMessage;
             if (errorData.sqlError) {
               errorMessage += `\nSQLエラー: ${errorData.sqlError}`;
+            }
+            // デバッグ情報がある場合は表示
+            if (errorData.debug) {
+              console.error('保存エラー詳細（デバッグ情報）:', errorData.debug);
+              errorMessage += `\n\nデバッグ情報:\n利用者拠点ID: ${JSON.stringify(errorData.debug.user_satellite_ids)}\n指導員拠点ID: ${JSON.stringify(errorData.debug.instructor_satellite_ids)}\n選択中拠点ID: ${errorData.debug.selected_satellite_id}`;
             }
             console.error('保存エラー詳細:', errorData);
           } catch (e) {
@@ -595,23 +644,23 @@ const WeeklyEvaluationPage = () => {
                       <div className="p-4 bg-white space-y-3 text-sm">
                         <div>
                           <span className="font-semibold text-gray-700">作業内容:</span>
-                          <p className="mt-1 text-gray-600">{record.workContent}</p>
+                          <p className="mt-1 text-gray-600 whitespace-pre-wrap">{record.workContent}</p>
                         </div>
                         <div>
                           <span className="font-semibold text-gray-700">作業実績:</span>
-                          <p className="mt-1 text-gray-600">{record.workResult}</p>
+                          <p className="mt-1 text-gray-600 whitespace-pre-wrap">{record.workResult}</p>
                         </div>
                         <div>
                           <span className="font-semibold text-gray-700">日報:</span>
-                          <p className="mt-1 text-gray-600">{record.dailyReport}</p>
+                          <p className="mt-1 text-gray-600 whitespace-pre-wrap">{record.dailyReport}</p>
                         </div>
                         <div>
                           <span className="font-semibold text-gray-700">支援内容:</span>
-                          <p className="mt-1 text-gray-600">{record.supportContent}</p>
+                          <p className="mt-1 text-gray-600 whitespace-pre-wrap">{record.supportContent}</p>
                         </div>
                         <div>
                           <span className="font-semibold text-gray-700">心身状況・助言内容:</span>
-                          <p className="mt-1 text-gray-600">{record.advice}</p>
+                          <p className="mt-1 text-gray-600 whitespace-pre-wrap">{record.advice}</p>
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="font-semibold text-gray-700">体調:</span>

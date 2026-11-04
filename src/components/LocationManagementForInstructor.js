@@ -362,15 +362,82 @@ const LocationManagementForInstructor = ({ currentUser, onLocationChange }) => {
     }
   };
 
+  // ログインコード生成
+  const generateLoginCode = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const generatePart = () => {
+      let result = '';
+      for (let i = 0; i < 4; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return result;
+    };
+    return `${generatePart()}-${generatePart()}-${generatePart()}`;
+  };
+
   // 指導者追加処理
   const handleAddInstructor = async (instructorData) => {
     setFormLoading(true);
     try {
       const satelliteId = getCurrentUserSatelliteId(currentUserRef.current);
-      const response = await apiPost(`/api/satellites/${satelliteId}/instructors`, instructorData);
+      
+      if (!satelliteId) {
+        alert('拠点情報が取得できません。ページをリロードしてください。');
+        setFormLoading(false);
+        return;
+      }
+
+      // 拠点情報を取得してcompany_idを取得
+      const satelliteResponse = await apiGet(`/api/satellites/${satelliteId}`);
+      const satelliteData = satelliteResponse.success ? satelliteResponse.data : satelliteResponse;
+      
+      if (!satelliteData || !satelliteData.company_id) {
+        alert('拠点情報が正しく取得できませんでした。');
+        setFormLoading(false);
+        return;
+      }
+
+      // バリデーション
+      if (!instructorData.username || !/^[a-zA-Z0-9_/.-]+$/.test(instructorData.username)) {
+        alert('ログインIDは半角英数字、アンダースコア、ハイフン、スラッシュ、ドットのみ使用可能です。');
+        setFormLoading(false);
+        return;
+      }
+
+      // リクエストデータを構築
+      const requestData = {
+        name: instructorData.name,
+        username: instructorData.username,
+        password: instructorData.password,
+        role: 4, // 指導員ロール
+        status: 1,
+        login_code: generateLoginCode(),
+        company_id: satelliteData.company_id,
+        satellite_ids: [satelliteId],
+        email: instructorData.email || null
+      };
+
+      console.log('指導員追加リクエスト:', requestData);
+
+      // ユーザー作成APIを呼び出し
+      const response = await apiPost('/api/users/create', requestData);
       
       if (response.success) {
         console.log('指導者追加成功:', response);
+        const userId = response.data?.id;
+
+        // 専門分野が指定されている場合、設定する
+        if (instructorData.specialization && instructorData.specialization.trim()) {
+          try {
+            await apiPost(`/api/instructors/${userId}/specializations`, {
+              specializations: [instructorData.specialization.trim()]
+            });
+          } catch (specError) {
+            console.error('専門分野の設定に失敗:', specError);
+            // 専門分野の設定に失敗してもユーザー作成は成功しているので警告のみ
+          }
+        }
+
         setShowAddTeacherForm(false);
         // 指導者一覧を再取得
         await fetchInstructors();
@@ -382,7 +449,7 @@ const LocationManagementForInstructor = ({ currentUser, onLocationChange }) => {
       }
     } catch (error) {
       console.error('指導者追加エラー:', error);
-      alert('指導者の追加に失敗しました: ' + error.message);
+      alert('指導者の追加に失敗しました: ' + (error.message || 'エンドポイントが見つかりません'));
     } finally {
       setFormLoading(false);
     }
@@ -390,27 +457,30 @@ const LocationManagementForInstructor = ({ currentUser, onLocationChange }) => {
 
   // 指導者削除処理
   const handleDeleteInstructor = async (instructorId) => {
-    if (!window.confirm('この指導者を削除しますか？')) {
+    if (!window.confirm('この指導者を削除しますか？\nこの操作は取り消せません。')) {
       return;
     }
 
     try {
-      const satelliteId = getCurrentUserSatelliteId(currentUserRef.current);
-      const response = await apiDelete(`/api/satellites/${satelliteId}/instructors/${instructorId}`);
+      // ユーザー削除APIを呼び出し
+      const response = await apiDelete(`/api/users/${instructorId}`);
       
       if (response.success) {
         console.log('指導者削除成功:', response);
+        
         // 指導者一覧を再取得
         await fetchInstructors();
         // 拠点統計も更新
         await fetchLocationData();
+        
+        alert('指導者を削除しました。');
       } else {
         console.error('指導者削除失敗:', response);
         alert('指導者の削除に失敗しました: ' + (response.message || '不明なエラー'));
       }
     } catch (error) {
       console.error('指導者削除エラー:', error);
-      alert('指導者の削除に失敗しました: ' + error.message);
+      alert('指導者の削除に失敗しました: ' + (error.message || 'エンドポイントが見つかりません'));
     }
   };
 
@@ -418,9 +488,18 @@ const LocationManagementForInstructor = ({ currentUser, onLocationChange }) => {
   const handleToggleManager = async (instructorId, isManager) => {
     try {
       const satelliteId = getCurrentUserSatelliteId(currentUserRef.current);
-      const response = await apiPut(`/api/satellites/${satelliteId}/instructors/${instructorId}/manager`, {
-        is_manager: isManager
-      });
+      
+      if (!satelliteId) {
+        alert('拠点情報が取得できません。ページをリロードしてください。');
+        return;
+      }
+
+      // isManagerに応じて適切なエンドポイントを呼び出し
+      const endpoint = isManager 
+        ? `/api/instructors/${instructorId}/set-manager/${satelliteId}`
+        : `/api/instructors/${instructorId}/remove-manager/${satelliteId}`;
+      
+      const response = await apiPost(endpoint);
       
       if (response.success) {
         console.log('管理者設定変更成功:', response);
@@ -434,7 +513,7 @@ const LocationManagementForInstructor = ({ currentUser, onLocationChange }) => {
       }
     } catch (error) {
       console.error('管理者設定変更エラー:', error);
-      alert('管理者設定の変更に失敗しました: ' + error.message);
+      alert('管理者設定の変更に失敗しました: ' + (error.message || 'エンドポイントが見つかりません'));
     }
   };
 

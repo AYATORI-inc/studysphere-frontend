@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import MultipleChoiceTest from '../components/learning/MultipleChoiceTest';
 import { SessionStorageManager } from '../utils/sessionStorage';
@@ -7,6 +7,7 @@ import { API_BASE_URL } from '../config/apiConfig';
 const LessonTestPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const isPreview = searchParams.get('preview') === '1';
   const [currentLesson, setCurrentLesson] = useState(1);
   const [testData, setTestData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -14,7 +15,13 @@ const LessonTestPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lessonData, setLessonData] = useState(null);
   const [sectionData, setSectionData] = useState(null);
+  const abortControllerRef = useRef(null);
+  const currentLessonRef = useRef(currentLesson);
   const GENERATION_FAILURE_MESSAGE = '問題の作成に失敗しました。再読み込みをしてください。';
+
+  useEffect(() => {
+    currentLessonRef.current = currentLesson;
+  }, [currentLesson]);
 
   const handleTestGenerationFailure = (detail) => {
     if (detail) {
@@ -37,18 +44,35 @@ const LessonTestPage = () => {
   }, [searchParams]);
 
   // レッスンデータとセクションデータを取得
+  // 注意: URLの?lesson=とcurrentLessonのずれによる二重fetch・後勝ち上書きを防ぐため、
+  // AbortControllerでキャンセルし、リクエスト一致時のみstateを更新する
   useEffect(() => {
+    const lessonParam = searchParams.get('lesson');
+    const urlLesson = lessonParam ? parseInt(lessonParam, 10) : null;
+    if (urlLesson != null && urlLesson >= 1 && currentLesson === 1 && urlLesson !== 1) {
+      return;
+    }
+    if (!currentLesson) return;
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    const fetchedFor = currentLesson;
+
+    setLessonData(null);
+    setSectionData(null);
+    setTestData(null);
+
     const fetchData = async () => {
       try {
         setLoading(true);
         setError(null);
-        
-        // レッスンデータを取得
-        const lessonResponse = await fetch(`${API_BASE_URL}/api/learning/lesson/${currentLesson}/content`, {
+
+        const lessonResponse = await fetch(`${API_BASE_URL}/api/learning/lesson/${fetchedFor}/content`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
             'Content-Type': 'application/json'
-          }
+          },
+          signal: controller.signal
         });
 
         if (!lessonResponse.ok) {
@@ -56,43 +80,49 @@ const LessonTestPage = () => {
         }
 
         const lessonResult = await lessonResponse.json();
-        if (lessonResult.success) {
+        if (lessonResult.success && currentLessonRef.current === fetchedFor) {
           setLessonData(lessonResult.data);
         }
 
-        // セクションデータを取得
-        const sectionResponse = await fetch(`${API_BASE_URL}/api/lesson-text-video-links/lesson/${currentLesson}`, {
+        const sectionResponse = await fetch(`${API_BASE_URL}/api/lesson-text-video-links/lesson/${fetchedFor}`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
             'Content-Type': 'application/json'
-          }
+          },
+          signal: controller.signal
         });
 
         if (sectionResponse.ok) {
           const sectionResult = await sectionResponse.json();
-          if (sectionResult.success) {
+          if (sectionResult.success && currentLessonRef.current === fetchedFor) {
             setSectionData(sectionResult.data);
           }
         }
-        
-      } catch (error) {
-        console.error('データ取得エラー:', error);
-        handleTestGenerationFailure(error);
+      } catch (err) {
+        if (err?.name === 'AbortError') return;
+        console.error('データ取得エラー:', err);
+        handleTestGenerationFailure(err);
         setLoading(false);
       }
     };
 
-    if (currentLesson) {
-      fetchData();
-    }
-  }, [currentLesson]);
+    fetchData();
+
+    return () => {
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = null;
+    };
+  }, [currentLesson, searchParams]);
 
   // セクションデータが取得された後にテストデータを生成
+  // 修正: セクションデータが空（動画がない場合）でも、レッスンデータがあればテストを生成
   useEffect(() => {
-    if (sectionData && sectionData.length > 0 && lessonData) {
+    // セクションデータが取得された（空配列でもOK）かつレッスンデータがある場合
+    if (sectionData !== null && lessonData) {
       console.log('セクションデータ取得完了、テストデータ生成開始:', {
         sectionCount: sectionData.length,
-        lessonTitle: lessonData.title
+        lessonTitle: lessonData.title,
+        hasSections: sectionData.length > 0
       });
       generateTestData();
     }
@@ -283,6 +313,7 @@ const LessonTestPage = () => {
       }
       
       // 各セクションのテキスト内容を取得
+      // 修正: セクションデータがない場合でも、レッスンのテキストファイルから直接取得
       if (sectionData && sectionData.length > 0) {
         for (let i = 0; i < sectionData.length; i++) {
           const section = sectionData[i];
@@ -444,10 +475,203 @@ const LessonTestPage = () => {
           }
         }
       } else {
-        console.warn('セクションデータがありません:', {
-          sectionData,
-          currentLesson
+        // セクションデータが空の場合（動画がない場合）、レッスンのテキストファイルから直接取得
+        console.log('セクションデータが空です。レッスンのテキストファイルから直接取得します:', {
+          lessonId: currentLesson,
+          lessonS3Key: lessonData?.s3_key,
+          fileType: lessonData?.file_type
         });
+        
+        if (lessonData?.s3_key) {
+          try {
+            // セッションストレージからコンテキストを取得
+            const fileType = lessonData.file_type || 'pdf';
+            const storedContext = SessionStorageManager.getContext(currentLesson, lessonData.s3_key, fileType);
+            
+            if (storedContext && storedContext.context) {
+              console.log('セッションストレージからレッスンテキストを取得:', {
+                contextLength: storedContext.context.length,
+                lessonId: currentLesson,
+                s3Key: lessonData.s3_key
+              });
+              allTextContent += storedContext.context;
+            } else {
+              // セッションストレージにない場合は、APIから取得
+              console.log('セッションストレージにコンテキストがないため、APIから取得します');
+              const response = await fetch(`${API_BASE_URL}/api/learning/lesson/${currentLesson}/content`, {
+                headers: {
+                  'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
+                  'Content-Type': 'application/json'
+                }
+              });
+              
+              if (response.ok) {
+                const result = await response.json();
+                if (result.success && result.data.textContent) {
+                  allTextContent += result.data.textContent;
+                }
+              }
+            }
+          } catch (error) {
+            console.error('レッスンテキスト取得エラー:', error);
+          }
+        }
+      }
+      
+      // 追加テキストファイル（lesson_text_files）の内容を取得
+      // セクションデータに既に含まれているものは除外する
+      try {
+        console.log('追加テキストファイルの取得を開始:', { lessonId: currentLesson });
+        
+        // セクションデータに既に含まれているtext_file_keyを収集
+        const sectionTextFileKeys = new Set();
+        if (sectionData && sectionData.length > 0) {
+          sectionData.forEach(section => {
+            if (section.text_file_key) {
+              sectionTextFileKeys.add(section.text_file_key);
+            }
+          });
+        }
+        
+        // 追加テキストファイルの一覧を取得
+        const additionalFilesResponse = await fetch(`${API_BASE_URL}/api/lesson-text-files/lesson/${currentLesson}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (additionalFilesResponse.ok) {
+          const additionalFilesResult = await additionalFilesResponse.json();
+          if (additionalFilesResult.success && additionalFilesResult.data && additionalFilesResult.data.length > 0) {
+            console.log('追加テキストファイル一覧取得成功:', {
+              fileCount: additionalFilesResult.data.length,
+              files: additionalFilesResult.data.map(f => ({ id: f.id, fileName: f.file_name, s3Key: f.s3_key }))
+            });
+            
+            // 各追加テキストファイルの内容を取得
+            for (const textFile of additionalFilesResult.data) {
+              // セクションデータに既に含まれている場合はスキップ
+              if (sectionTextFileKeys.has(textFile.s3_key)) {
+                console.log('追加テキストファイルはセクションデータに既に含まれているためスキップ:', {
+                  fileName: textFile.file_name,
+                  s3Key: textFile.s3_key
+                });
+                continue;
+              }
+              
+              try {
+                // セッションストレージからコンテキストを取得
+                const fileType = textFile.file_type || 'text/plain';
+                let storedContext = SessionStorageManager.getContext(currentLesson, textFile.s3_key, fileType);
+                
+                // メタデータから正確なレッスンIDを確認
+                if (storedContext && storedContext.metadata && storedContext.metadata.lessonId !== currentLesson) {
+                  console.warn('追加テキストファイルのコンテキストのレッスンIDが一致しません:', {
+                    expectedLessonId: currentLesson,
+                    actualLessonId: storedContext.metadata.lessonId,
+                    fileName: textFile.file_name,
+                    s3Key: textFile.s3_key
+                  });
+                  storedContext = null;
+                }
+                
+                let fileContent = null;
+                
+                if (storedContext && storedContext.context) {
+                  // コンテキストが有効かどうかを検証
+                  const contextLength = storedContext.context.length;
+                  const hasValidContent = storedContext.context.length > 50;
+                  
+                  if (contextLength > 50 && hasValidContent) {
+                    fileContent = storedContext.context;
+                    console.log('追加テキストファイルのコンテキストをセッションストレージから取得:', {
+                      fileName: textFile.file_name,
+                      contextLength: storedContext.context.length
+                    });
+                  } else {
+                    storedContext = null;
+                  }
+                }
+                
+                // セッションストレージにない場合は、APIから取得
+                if (!fileContent) {
+                  console.log('追加テキストファイルをAPIから取得:', {
+                    fileName: textFile.file_name,
+                    s3Key: textFile.s3_key,
+                    fileType: textFile.file_type
+                  });
+                  
+                  // クエリパラメータとして送信することで、CORSエラーを回避（日本語を含む長いパスの問題を解決）
+                  const extractResponse = await fetch(`${API_BASE_URL}/api/test/learning/extract-text?s3Key=${encodeURIComponent(textFile.s3_key)}`, {
+                    headers: {
+                      'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
+                      'Content-Type': 'application/json'
+                    }
+                  });
+                  
+                  if (extractResponse.ok) {
+                    const extractResult = await extractResponse.json();
+                    if (extractResult.success && extractResult.data && extractResult.data.text) {
+                      fileContent = extractResult.data.text;
+                      
+                      // 取得したテキストをセッションストレージに保存
+                      const saveSuccess = SessionStorageManager.saveContext(
+                        currentLesson,
+                        textFile.s3_key,
+                        fileContent,
+                        {
+                          fileType: textFile.file_type,
+                          lessonTitle: lessonData?.title,
+                          fileName: textFile.file_name,
+                          source: 'additional_text_file'
+                        }
+                      );
+                      
+                      if (saveSuccess) {
+                        console.log('追加テキストファイルのコンテキストをセッションストレージに保存完了:', {
+                          fileName: textFile.file_name
+                        });
+                      }
+                    }
+                  } else {
+                    console.warn('追加テキストファイルの取得に失敗:', {
+                      fileName: textFile.file_name,
+                      status: extractResponse.status,
+                      statusText: extractResponse.statusText
+                    });
+                  }
+                }
+                
+                // 取得した内容を追加
+                if (fileContent && fileContent.trim().length > 0) {
+                  allTextContent += `\n\n## 追加テキスト: ${textFile.file_name || '追加テキスト'}\n\n`;
+                  allTextContent += fileContent;
+                  console.log('追加テキストファイルの内容を追加:', {
+                    fileName: textFile.file_name,
+                    contentLength: fileContent.length
+                  });
+                }
+              } catch (error) {
+                console.error('追加テキストファイルの取得エラー:', {
+                  error: error.message,
+                  fileName: textFile.file_name,
+                  s3Key: textFile.s3_key
+                });
+              }
+            }
+          } else {
+            console.log('追加テキストファイルはありません');
+          }
+        } else {
+          console.warn('追加テキストファイル一覧の取得に失敗:', {
+            status: additionalFilesResponse.status,
+            statusText: additionalFilesResponse.statusText
+          });
+        }
+      } catch (error) {
+        console.error('追加テキストファイル取得処理エラー:', error);
+        // エラーが発生しても処理を続行
       }
       
       // コンテキスト化の完了を確認
@@ -499,6 +723,11 @@ const LessonTestPage = () => {
     setIsSubmitting(true);
     
     try {
+      if (isPreview) {
+        alert('プレビューでは提出/採点/結果表示はできません（問題画面の閲覧のみ可能です）。');
+        setIsSubmitting(false);
+        return;
+      }
       // 認証されたユーザーIDを使用するため、userIdはリクエストボディに含めない
       
       // テスト結果を提出

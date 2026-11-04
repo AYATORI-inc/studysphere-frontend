@@ -4,11 +4,7 @@ import SanitizedInput from './SanitizedInput';
 import SanitizedTextarea from './SanitizedTextarea';
 import { SANITIZE_OPTIONS } from '../utils/sanitizeUtils';
 import { convertTimeToMySQLDateTime } from '../utils/dateUtils';
-
-const API_BASE_URL = process.env.REACT_APP_API_URL || 
-  (window.location.hostname === 'studysphere.ayatori-inc.co.jp' 
-    ? 'https://backend.studysphere.ayatori-inc.co.jp' 
-    : 'http://localhost:5050');
+import { API_BASE_URL } from '../config/apiConfig';
 
 const DailyReportManagement = ({ student, onClose }) => {
   const { currentUser } = useAuth();

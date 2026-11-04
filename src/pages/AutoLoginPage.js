@@ -133,7 +133,7 @@ const AutoLoginPage = () => {
           
         } else {
           console.error('AutoLoginPage: 認証失敗:', result);
-          const errorMessage = result.message || result.error || '認証に失敗しました';
+          const errorMessage = result.message || '認証に失敗しました';
           setError(`認証エラー: ${errorMessage}`);
           
           // 3秒後にログインページにリダイレクト

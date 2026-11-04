@@ -57,7 +57,9 @@ export const apiCall = async (endpoint, options = {}, retryCount = 0) => {
     '/api/messages/unread-count',
     '/api/remote-support/login',
     '/api/remote-support/check-temp-password',
-    '/api/remote-support/auto-login'
+    '/api/remote-support/auto-login',
+    '/api/sso/ticket/verify',
+    '/api/sso/login'
   ];
   
   const isAuthRequired = authRequiredEndpoints.some(authEndpoint => endpoint.includes(authEndpoint));
@@ -93,8 +95,11 @@ export const apiCall = async (endpoint, options = {}, retryCount = 0) => {
     console.log(`API呼び出し: ${config.method || 'GET'} ${url}${retryCount > 0 ? ` (再試行 ${retryCount})` : ''}`);
     
     // タイムアウト設定を追加
+    // AI生成APIは処理に時間がかかるため長めに待つ（通常は15秒）
+    const isAiEndpoint = endpoint.includes('-ai/');
+    const timeoutMs = options.timeoutMs ?? (isAiEndpoint ? 120000 : 15000);
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15秒タイムアウトに延長
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     
     const response = await fetch(url, {
       ...config,
@@ -112,7 +117,9 @@ export const apiCall = async (endpoint, options = {}, retryCount = 0) => {
         '/refresh',
         '/register',
         '/forgot-password',
-        '/api/messages/unread-count'
+        '/api/messages/unread-count',
+        '/api/users/verify-temp-password',
+        '/api/temp-passwords/status/'
       ];
       
       const isAuthExcluded = authExcludedEndpoints.some(excludedEndpoint => endpoint.includes(excludedEndpoint));
@@ -122,20 +129,68 @@ export const apiCall = async (endpoint, options = {}, retryCount = 0) => {
         return response;
       }
       
-      isAuthErrorHandling = true;
-      console.warn('認証エラーを検出しました。リダイレクト処理を開始します。');
-      
-      // グローバルナビゲーション関数を取得
-      const { setGlobalNavigate } = await import('./httpInterceptor');
-      const { handleTokenInvalid } = await import('./authUtils');
-      
-      // 即座にリダイレクト処理を実行
-      setTimeout(() => {
-        handleTokenInvalid(window.navigate || (() => window.location.href = '/homepage'), '認証に失敗しました');
-        isAuthErrorHandling = false;
-      }, 100);
-      
-      throw new Error('Authentication failed');
+      // 403エラーの場合、レスポンスボディを確認して権限エラーかどうかを判定
+      if (response.status === 403) {
+        try {
+          const responseClone = response.clone();
+          const errorData = await responseClone.json();
+          // 権限エラー（拠点アクセス権限エラーなど）の場合は認証エラーとして扱わない
+          if (errorData.errorType === 'SATELLITE_ACCESS_DENIED' || 
+              errorData.message?.includes('所属拠点') ||
+              errorData.message?.includes('アクセス権限')) {
+            console.log('権限エラーのため、認証エラー処理をスキップします');
+            // 通常のエラー処理に進む（下のif (!response.ok)ブロックで処理される）
+          } else {
+            // 認証エラーとして処理
+            isAuthErrorHandling = true;
+            console.warn('認証エラーを検出しました。リダイレクト処理を開始します。');
+            
+            // グローバルナビゲーション関数を取得
+            const { setGlobalNavigate } = await import('./httpInterceptor');
+            const { handleTokenInvalid } = await import('./authUtils');
+            
+            // 即座にリダイレクト処理を実行
+            setTimeout(() => {
+              handleTokenInvalid(window.navigate || (() => window.location.href = '/homepage'), '認証に失敗しました');
+              isAuthErrorHandling = false;
+            }, 100);
+            
+            throw new Error('Authentication failed');
+          }
+        } catch (parseError) {
+          // JSONパースに失敗した場合は認証エラーとして処理
+          isAuthErrorHandling = true;
+          console.warn('認証エラーを検出しました。リダイレクト処理を開始します。');
+          
+          // グローバルナビゲーション関数を取得
+          const { setGlobalNavigate } = await import('./httpInterceptor');
+          const { handleTokenInvalid } = await import('./authUtils');
+          
+          // 即座にリダイレクト処理を実行
+          setTimeout(() => {
+            handleTokenInvalid(window.navigate || (() => window.location.href = '/homepage'), '認証に失敗しました');
+            isAuthErrorHandling = false;
+          }, 100);
+          
+          throw new Error('Authentication failed');
+        }
+      } else {
+        // 401エラーの場合は認証エラーとして処理
+        isAuthErrorHandling = true;
+        console.warn('認証エラーを検出しました。リダイレクト処理を開始します。');
+        
+        // グローバルナビゲーション関数を取得
+        const { setGlobalNavigate } = await import('./httpInterceptor');
+        const { handleTokenInvalid } = await import('./authUtils');
+        
+        // 即座にリダイレクト処理を実行
+        setTimeout(() => {
+          handleTokenInvalid(window.navigate || (() => window.location.href = '/homepage'), '認証に失敗しました');
+          isAuthErrorHandling = false;
+        }, 100);
+        
+        throw new Error('Authentication failed');
+      }
     }
     
     if (!response.ok) {
@@ -312,7 +367,9 @@ export const apiDownloadBinary = async (endpoint, options = {}) => {
         '/refresh',
         '/register',
         '/forgot-password',
-        '/api/messages/unread-count'
+        '/api/messages/unread-count',
+        '/api/users/verify-temp-password',
+        '/api/temp-passwords/status/'
       ];
       
       const isAuthExcluded = authExcludedEndpoints.some(excludedEndpoint => endpoint.includes(excludedEndpoint));
@@ -870,6 +927,10 @@ export const approveSubmission = async (submissionId, studentId, lessonId, comme
 
 export const getPendingSubmissionCount = async (satelliteId) => {
   return apiGet(`/api/submissions/instructor/pending-count/${satelliteId}`);
+};
+
+export const resubmitSubmission = async (submissionId) => {
+  return apiDelete(`/api/submissions/instructor/resubmit/${submissionId}`);
 };
 
 /**

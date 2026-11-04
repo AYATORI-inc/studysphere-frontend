@@ -754,7 +754,7 @@ PDF処理キャンセル
 テスト結果提出API（採点機能付き）
 
 #### GET `/api/test/instructor/student/:studentId/lesson-progress`
-指導員用：学生のレッスン進捗とテスト結果を取得
+指導員用：利用者のレッスン進捗とテスト結果を取得
 
 #### POST `/api/test/instructor/student/:studentId/lesson/:lessonId/approve`
 指導員用：レッスン完了の承認
@@ -912,7 +912,7 @@ PDF処理キャンセル
 指導員用：拠点内の未承認提出物一覧取得
 
 #### GET `/api/submissions/instructor/student/:studentId/submissions`
-指導員用：特定学生の提出物一覧取得
+指導員用：特定利用者の提出物一覧取得
 
 #### GET `/api/submissions/instructor/download/:submissionId`
 指導員用：提出物ダウンロード

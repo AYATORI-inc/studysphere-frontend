@@ -487,7 +487,8 @@ const InstructorHeader = ({ user, onLocationChange, showBackButton = false, back
   
   // 権限チェック
   const canSwitchCompany = actualRoleId >= 9;
-  const canSwitchSatellite = actualRoleId >= 9 || (Array.isArray(userSatellites) && userSatellites.length > 0);
+  // 指導員の場合は、複数拠点に所属している場合のみ切り替え可能
+  const canSwitchSatellite = actualRoleId >= 9 || (Array.isArray(userSatellites) && userSatellites.length > 1);
   const canSwitchAnything = canSwitchCompany || canSwitchSatellite;
 
   return (

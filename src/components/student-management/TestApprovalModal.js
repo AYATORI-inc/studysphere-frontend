@@ -33,7 +33,7 @@ const TestApprovalModal = ({
       const response = await getPendingApprovals(satelliteId);
       console.log('TestApprovalModal: getPendingApprovalsレスポンス:', response);
       if (response.success) {
-        // 選択された学生のテストのみをフィルタリング
+        // 選択された利用者のテストのみをフィルタリング
         const studentTests = response.data.filter(test => test.user_id === student.id);
         setPendingTests(studentTests);
       } else {
@@ -154,14 +154,16 @@ const TestApprovalModal = ({
                         <h4 className="text-lg font-semibold text-gray-800">
                           {test.lesson_name}
                         </h4>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          test.test_type === 'lesson' 
-                            ? 'bg-purple-100 text-purple-800' 
-                            : 'bg-blue-100 text-blue-800'
-                        }`}>
-                          {test.test_type === 'lesson' ? '総合テスト' : 'セクションテスト'}
-                        </span>
-                        {test.has_assignment && (
+                        {(test.test_type === 'lesson' || test.test_type === 'section') && (
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            test.test_type === 'lesson' 
+                              ? 'bg-purple-100 text-purple-800' 
+                              : 'bg-blue-100 text-blue-800'
+                          }`}>
+                            {test.test_type === 'lesson' ? '総合テスト' : 'セクションテスト'}
+                          </span>
+                        )}
+                        {(test.has_assignment === 1 || test.has_assignment === true) && (
                           <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded-full text-xs font-medium">
                             提出物あり
                           </span>

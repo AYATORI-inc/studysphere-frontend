@@ -176,16 +176,16 @@ const MultipleChoiceTest = ({
           </div>
           
           <div className="flex items-center gap-6">
-            {/* 進捗バー */}
+            {/* 進捗バー（回答済み問題数に基づく） */}
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium text-gray-600">進捗:</span>
               <div className="w-32 bg-gray-200 rounded-full h-2">
                 <div 
                   className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${((currentQuestionIndex + 1) / shuffledQuestions.length) * 100}%` }}
+                  style={{ width: `${shuffledQuestions.length > 0 ? (answeredCount / shuffledQuestions.length) * 100 : 0}%` }}
                 ></div>
               </div>
-              <span className="text-sm text-gray-600">{Math.round(((currentQuestionIndex + 1) / shuffledQuestions.length) * 100)}%</span>
+              <span className="text-sm text-gray-600">{shuffledQuestions.length > 0 ? Math.round((answeredCount / shuffledQuestions.length) * 100) : 0}%</span>
             </div>
 
             {/* 回答済み数 */}

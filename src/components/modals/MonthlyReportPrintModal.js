@@ -177,7 +177,7 @@ const MonthlyReportPrintModal = ({ isOpen, onClose, evaluationData, student, per
       updateCell('V6', formatTime(evaluationData.endTime)); // 実施時間（終了）
     }
 
-    // 5. 実施方法 (D7, F7, H7セルにチェック、その他はK7-M7)
+    // 5. 実施方法 (通所→D7、訪問→G7、その他→J7にチェック、その他の詳細はK7)
     // 実施方法の処理（チェックボックスの代わりにテキストで記入）
     const method = evaluationData.method === 'その他' && evaluationData.methodOther 
       ? `その他(${evaluationData.methodOther})` 
@@ -187,9 +187,9 @@ const MonthlyReportPrintModal = ({ isOpen, onClose, evaluationData, student, per
       if (evaluationData.method === '通所') {
         updateCell('D7', '✓');
       } else if (evaluationData.method === '訪問') {
-        updateCell('F7', '✓');
+        updateCell('G7', '✓');
       } else if (evaluationData.method === 'その他') {
-        updateCell('H7', '✓');
+        updateCell('J7', '✓');
         if (evaluationData.methodOther) {
           updateMergedCell('K7', evaluationData.methodOther);
         }

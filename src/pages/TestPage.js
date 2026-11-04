@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { API_BASE_URL } from '../config/apiConfig';
 
 const TestPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const isPreview = searchParams.get('preview') === '1';
   const [currentLesson, setCurrentLesson] = useState(1);
   const [testData, setTestData] = useState(null);
   const [answers, setAnswers] = useState({});
@@ -32,7 +34,7 @@ const TestPage = () => {
         
         const lessonId = currentLesson;
         
-        const response = await fetch(`/api/learning/lesson/${lessonId}/content`, {
+        const response = await fetch(`${API_BASE_URL}/api/learning/lesson/${lessonId}/content`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
             'Content-Type': 'application/json'
@@ -127,6 +129,10 @@ const TestPage = () => {
 
   // テスト提出
   const handleSubmit = async () => {
+    if (isPreview) {
+      alert('プレビューでは回答の提出/採点/結果表示はできません（問題画面の閲覧のみ可能です）。');
+      return;
+    }
     setIsSubmitting(true);
     
     try {
@@ -326,15 +332,21 @@ const TestPage = () => {
                     ⚠️ すべての問題に回答してから提出してください
                   </p>
                 )}
+                {isPreview && (
+                  <p className="text-yellow-700 text-sm mt-1">
+                    ※プレビューでは提出/採点/結果表示はできません（問題画面の閲覧のみ可能）
+                  </p>
+                )}
               </div>
               <button
                 className={`px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-200 ${
-                  answeredCount === testData.questions.length && !isSubmitting
+                  answeredCount === testData.questions.length && !isSubmitting && !isPreview
                     ? 'bg-gradient-to-r from-blue-500 to-cyan-600 text-white hover:shadow-lg transform hover:-translate-y-0.5'
                     : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 }`}
                 onClick={handleSubmit}
-                disabled={answeredCount < testData.questions.length || isSubmitting}
+                disabled={answeredCount < testData.questions.length || isSubmitting || isPreview}
+                title={isPreview ? 'プレビューでは提出/採点/結果表示はできません' : undefined}
               >
                 {isSubmitting ? (
                   <div className="flex items-center gap-3">

@@ -111,6 +111,12 @@ h1, h2, h3, h4, h5, h6 {
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
 }
 
+/* 必須項目のアスタリスクを赤で統一（labelに required-asterisk クラスを付与） */
+label.required-asterisk::after {
+  content: ' *';
+  color: #ef4444;
+}
+
 /* 印刷用スタイル */
 @media print {
   /* ページ設定 */
@@ -164,4 +170,24 @@ h1, h2, h3, h4, h5, h6 {
   a[href]:after {
     content: none !important;
   }
+}
+
+/* Markdown表: 行の背景色を交互に変更して可読性向上 */
+.markdown-table-zebra thead tr {
+  background-color: #f3f4f6;
+}
+.markdown-table-zebra tbody tr:nth-child(odd) {
+  background-color: #ffffff;
+}
+.markdown-table-zebra tbody tr:nth-child(even) {
+  background-color: #f9fafb;
+}
+
+/* 学習ワークスペース: ドラッグで入れ替え時のスムーズなアニメーション */
+.learning-workspace-layout .react-grid-item:not(.react-draggable-dragging) {
+  transition: left 0.2s ease-out, top 0.2s ease-out, width 0.2s ease-out, height 0.2s ease-out, transform 0.2s ease-out;
+}
+.learning-workspace-layout .react-grid-item.react-draggable-dragging {
+  z-index: 100;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
 } 

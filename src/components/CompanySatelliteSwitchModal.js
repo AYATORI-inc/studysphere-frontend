@@ -81,28 +81,47 @@ const CompanySatelliteSwitchModal = ({
         }
         
         setSatellites(filteredSatellites);
-      } else if (currentCompany && currentCompany.id) {
-        // 指導員の場合は現在の企業に紐づいた拠点のみを取得
-        console.log('現在の企業に紐づいた拠点を取得:', currentCompany.id);
-        try {
-          const satellitesData = await getSatellitesByCompany(currentCompany.id);
-          console.log('企業拠点データ取得結果:', satellitesData);
-          
-          const satellitesArray = satellitesData.success ? satellitesData.data : satellitesData;
-          console.log('処理後の企業拠点データ:', satellitesArray);
-          
-          setSatellites(Array.isArray(satellitesArray) ? satellitesArray : []);
-        } catch (error) {
-          console.error('企業拠点データ取得エラー:', error);
-          // フォールバック: ユーザーの所属拠点を使用
-          if (userSatellites && userSatellites.length > 0) {
-            console.log('フォールバック: ユーザー拠点データ設定:', userSatellites);
-            setSatellites(Array.isArray(userSatellites) ? userSatellites : []);
+      } else {
+        // 指導員の場合
+        // 単一拠点にのみ所属している場合は、所属拠点のみを表示
+        if (userSatellites && userSatellites.length === 1) {
+          console.log('単一拠点所属のため、所属拠点のみを設定:', userSatellites);
+          setSatellites(Array.isArray(userSatellites) ? userSatellites : []);
+        } else if (currentCompany && currentCompany.id) {
+          // 複数拠点に所属している場合は、現在の企業に紐づいた拠点のみを取得
+          // ただし、ユーザーが所属している拠点のみにフィルタリング
+          console.log('現在の企業に紐づいた拠点を取得（所属拠点のみ）:', currentCompany.id);
+          try {
+            const satellitesData = await getSatellitesByCompany(currentCompany.id);
+            console.log('企業拠点データ取得結果:', satellitesData);
+            
+            const satellitesArray = satellitesData.success ? satellitesData.data : satellitesData;
+            console.log('処理後の企業拠点データ:', satellitesArray);
+            
+            // ユーザーが所属している拠点のみにフィルタリング
+            const userSatelliteIds = Array.isArray(userSatellites) 
+              ? userSatellites.map(s => s.id || s.satellite_id)
+              : [];
+            const filteredSatellites = Array.isArray(satellitesArray)
+              ? satellitesArray.filter(satellite => 
+                  userSatelliteIds.includes(satellite.id || satellite.satellite_id)
+                )
+              : [];
+            
+            console.log('フィルタリング後の拠点データ（所属拠点のみ）:', filteredSatellites);
+            setSatellites(filteredSatellites);
+          } catch (error) {
+            console.error('企業拠点データ取得エラー:', error);
+            // フォールバック: ユーザーの所属拠点を使用
+            if (userSatellites && userSatellites.length > 0) {
+              console.log('フォールバック: ユーザー拠点データ設定:', userSatellites);
+              setSatellites(Array.isArray(userSatellites) ? userSatellites : []);
+            }
           }
+        } else if (userSatellites && userSatellites.length > 0) {
+          console.log('ユーザー拠点データ設定:', userSatellites);
+          setSatellites(Array.isArray(userSatellites) ? userSatellites : []);
         }
-      } else if (userSatellites && userSatellites.length > 0) {
-        console.log('ユーザー拠点データ設定:', userSatellites);
-        setSatellites(Array.isArray(userSatellites) ? userSatellites : []);
       }
     } catch (error) {
       console.error('データ取得エラー:', error);
@@ -190,7 +209,8 @@ const CompanySatelliteSwitchModal = ({
 
   // 拠点切り替えの権限チェック
   const canSwitchSatelliteForAdmin = userRole >= 9 && satellites.length > 0;
-  const canSwitchSatelliteForUser = (userRole < 9 && satellites.length > 0) || (Array.isArray(userSatellites) && userSatellites.length > 0);
+  // 指導員の場合は、複数拠点に所属している場合のみ切り替え可能
+  const canSwitchSatelliteForUser = userRole < 9 && Array.isArray(userSatellites) && userSatellites.length > 1;
   const canSwitchSatellite = canSwitchSatelliteForAdmin || canSwitchSatelliteForUser;
 
   // デバッグ情報を追加
@@ -291,53 +311,58 @@ const CompanySatelliteSwitchModal = ({
                     </p>
                   </div>
                 )}
-                <div className="grid grid-cols-1 gap-3">
-                  {(() => {
-                    const satelliteList = satellites || [];
-                    console.log('拠点リスト表示:', {
-                      userRole,
-                      satellites,
-                      userSatellites,
-                      satelliteList,
-                      satelliteListLength: satelliteList.length
-                    });
-                    return satelliteList.map((satellite) => (
-                      <button
-                        key={satellite.id}
-                        onClick={() => setSelectedSatellite(satellite)}
-                        className={`w-full flex items-center p-4 rounded-lg transition-all duration-200 ${
-                          selectedSatellite?.id === satellite.id
-                            ? 'bg-indigo-50 border-2 border-indigo-500'
-                            : 'bg-gray-50 border-2 border-transparent hover:border-indigo-200'
-                        }`}
-                      >
-                        <div className="flex-1 flex items-center gap-3">
-                          <span className="text-2xl">
-                            {satellite.office_type_name?.includes('学習塾') ? '📚' : 
-                             satellite.office_type_name?.includes('就労移行') ? '🏢' :
-                             satellite.office_type_name?.includes('A型') ? '🏭' :
-                             satellite.office_type_name?.includes('B型') ? '🏗️' : '🏫'}
-                          </span>
-                          <div className="text-left">
-                            <div className="font-medium text-gray-800">{satellite.name}</div>
-                            <div className="text-sm text-gray-600">{satellite.office_type_name}</div>
+                {/* 単一拠点所属の場合は拠点リストを非表示 */}
+                {!(userRole < 9 && userSatellites && userSatellites.length === 1) && (
+                  <div className="max-h-96 overflow-y-auto pr-2">
+                    <div className="grid grid-cols-1 gap-3">
+                      {(() => {
+                        const satelliteList = satellites || [];
+                        console.log('拠点リスト表示:', {
+                          userRole,
+                          satellites,
+                          userSatellites,
+                          satelliteList,
+                          satelliteListLength: satelliteList.length
+                        });
+                        return satelliteList.map((satellite) => (
+                        <button
+                          key={satellite.id}
+                          onClick={() => setSelectedSatellite(satellite)}
+                          className={`w-full flex items-center p-4 rounded-lg transition-all duration-200 ${
+                            selectedSatellite?.id === satellite.id
+                              ? 'bg-indigo-50 border-2 border-indigo-500'
+                              : 'bg-gray-50 border-2 border-transparent hover:border-indigo-200'
+                          }`}
+                        >
+                          <div className="flex-1 flex items-center gap-3">
+                            <span className="text-2xl">
+                              {satellite.office_type_name?.includes('学習塾') ? '📚' : 
+                               satellite.office_type_name?.includes('就労移行') ? '🏢' :
+                               satellite.office_type_name?.includes('A型') ? '🏭' :
+                               satellite.office_type_name?.includes('B型') ? '🏗️' : '🏫'}
+                            </span>
+                            <div className="text-left">
+                              <div className="font-medium text-gray-800">{satellite.name}</div>
+                              <div className="text-sm text-gray-600">{satellite.office_type_name}</div>
+                            </div>
                           </div>
-                        </div>
-                        <div className={`flex items-center justify-center w-6 h-6 rounded-full border-2 ml-4 ${
-                          selectedSatellite?.id === satellite.id
-                            ? 'border-indigo-500 bg-indigo-500'
-                            : 'border-gray-300'
-                        }`}>
-                          {selectedSatellite?.id === satellite.id && (
-                            <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                            </svg>
-                          )}
-                        </div>
-                      </button>
-                    ));
-                  })()}
-                </div>
+                          <div className={`flex items-center justify-center w-6 h-6 rounded-full border-2 ml-4 ${
+                            selectedSatellite?.id === satellite.id
+                              ? 'border-indigo-500 bg-indigo-500'
+                              : 'border-gray-300'
+                          }`}>
+                            {selectedSatellite?.id === satellite.id && (
+                              <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                            )}
+                          </div>
+                        </button>
+                      ));
+                    })()}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -345,8 +370,9 @@ const CompanySatelliteSwitchModal = ({
             {activeTab === 'company' && canSwitchCompany && companySelectionStep === 'selectCompany' && (
               <div className="space-y-4">
                 <h3 className="font-medium text-gray-700">企業から選択</h3>
-                <div className="grid grid-cols-1 gap-3">
-                  {(companies || []).map((company) => (
+                <div className="max-h-96 overflow-y-auto pr-2">
+                  <div className="grid grid-cols-1 gap-3">
+                    {(companies || []).map((company) => (
                     <button
                       key={company.id}
                       onClick={() => handleCompanySelect(company)}
@@ -376,6 +402,7 @@ const CompanySatelliteSwitchModal = ({
                       </div>
                     </button>
                   ))}
+                  </div>
                 </div>
               </div>
             )}
@@ -403,8 +430,9 @@ const CompanySatelliteSwitchModal = ({
                   </p>
                 </div>
                 <h3 className="font-medium text-gray-700">拠点を選択してください</h3>
-                <div className="grid grid-cols-1 gap-3">
-                  {(satellites || []).map((satellite) => (
+                <div className="max-h-96 overflow-y-auto pr-2">
+                  <div className="grid grid-cols-1 gap-3">
+                    {(satellites || []).map((satellite) => (
                     <button
                       key={satellite.id}
                       onClick={() => setSelectedSatellite(satellite)}
@@ -439,6 +467,7 @@ const CompanySatelliteSwitchModal = ({
                       </div>
                     </button>
                   ))}
+                  </div>
                 </div>
               </div>
             )}
@@ -464,7 +493,7 @@ const CompanySatelliteSwitchModal = ({
           >
             キャンセル
           </button>
-          {activeTab === 'satellite' && canSwitchSatellite && (
+          {activeTab === 'satellite' && canSwitchSatellite && !(userRole < 9 && userSatellites && userSatellites.length === 1) && (
             <button
               onClick={handleSatelliteConfirm}
               disabled={!selectedSatellite}

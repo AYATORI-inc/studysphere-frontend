@@ -4,6 +4,7 @@ import { useInstructorGuard } from '../utils/hooks/useAuthGuard';
 import InstructorHeader from '../components/InstructorHeader';
 import { apiCall } from '../utils/api';
 import ExcelJS from 'exceljs';
+import { normalizeSatelliteId, getCurrentUserSatelliteId } from '../utils/locationUtils';
 
 const MonthlyEvaluationHistoryPage = () => {
   const { userId } = useParams();
@@ -20,6 +21,7 @@ const MonthlyEvaluationHistoryPage = () => {
   const [editingEvaluation, setEditingEvaluation] = useState(null);
   const [instructorList, setInstructorList] = useState([]);
   const [excelDownloading, setExcelDownloading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const timeOnlyPattern = useMemo(() => /^\d{2}:\d{2}/, []);
   const tokyoDateTimeFormatter = useMemo(() => new Intl.DateTimeFormat('ja-JP', {
@@ -59,6 +61,30 @@ const MonthlyEvaluationHistoryPage = () => {
     }
 
     return `${parts.year}年${parts.month}月${parts.day}日 ${parts.hour}:${parts.minute}`;
+  };
+
+  // 実施時間をHH:MM形式で表示
+  const formatTimeForDisplay = (value) => {
+    if (!value) return '';
+    if (timeOnlyPattern.test(value)) {
+      return value.slice(0, 5);
+    }
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return '';
+    }
+
+    const parts = tokyoTimeFormatter.formatToParts(date).reduce((acc, part) => {
+      acc[part.type] = part.value;
+      return acc;
+    }, {});
+
+    if (!parts.hour || !parts.minute) {
+      return tokyoTimeFormatter.format(date);
+    }
+
+    return `${parts.hour}:${parts.minute}`;
   };
 
   const normalizeTimeForInput = (value) => {
@@ -190,10 +216,52 @@ const MonthlyEvaluationHistoryPage = () => {
 
   // フロントエンドデータをバックエンド形式に変換
   const convertFrontendToBackend = (data) => {
-    return {
+    // 時間と日付を組み合わせてYYYY-MM-DD HH:MM:SS形式に変換
+    const combineDateAndTime = (dateStr, timeStr) => {
+      if (!dateStr || !timeStr || timeStr.trim() === '') {
+        return null;
+      }
+      // 日付をYYYY-MM-DD形式に正規化
+      let normalizedDate = dateStr;
+      if (dateStr instanceof Date) {
+        const year = dateStr.getFullYear();
+        const month = String(dateStr.getMonth() + 1).padStart(2, '0');
+        const day = String(dateStr.getDate()).padStart(2, '0');
+        normalizedDate = `${year}-${month}-${day}`;
+      } else if (typeof dateStr === 'string' && !dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        // 日付文字列を正規化
+        const date = new Date(dateStr);
+        if (!Number.isNaN(date.getTime())) {
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          normalizedDate = `${year}-${month}-${day}`;
+        } else {
+          return null;
+        }
+      }
+      
+      // 時間をHH:MM形式に正規化
+      let normalizedTime = timeStr;
+      if (timeStr.match(/^\d{2}:\d{2}$/)) {
+        // 既にHH:MM形式
+        normalizedTime = timeStr;
+      } else {
+        // その他の形式から時間部分を抽出
+        const timeMatch = timeStr.match(/(\d{2}):(\d{2})/);
+        if (timeMatch) {
+          normalizedTime = `${timeMatch[1]}:${timeMatch[2]}`;
+        } else {
+          return null;
+        }
+      }
+      
+      // YYYY-MM-DD HH:MM:SS形式に結合
+      return `${normalizedDate} ${normalizedTime}:00`;
+    };
+
+    const result = {
       date: data.date,
-      mark_start: data.startTime || null,
-      mark_end: data.endTime || null,
       evaluation_method: data.method === 'その他' ? 'その他' : data.method,
       method_other: data.method === 'その他' ? data.methodOther : null,
       goal: data.trainingGoal || null,
@@ -211,6 +279,19 @@ const MonthlyEvaluationHistoryPage = () => {
       period_start: data.startDate || null,
       period_end: data.endDate || null
     };
+    
+    // 時間が設定されている場合のみmark_startとmark_endを追加
+    const markStart = combineDateAndTime(data.date, data.startTime);
+    if (markStart) {
+      result.mark_start = markStart;
+    }
+    
+    const markEnd = combineDateAndTime(data.date, data.endTime);
+    if (markEnd) {
+      result.mark_end = markEnd;
+    }
+    
+    return result;
   };
 
   // 利用者情報を取得
@@ -290,7 +371,30 @@ const MonthlyEvaluationHistoryPage = () => {
         if (!Array.isArray(satelliteIds) || satelliteIds.length === 0) return;
         
         const satelliteId = satelliteIds[0]; // 最初の拠点を使用
-        const response = await apiCall(`/api/users/satellite/${satelliteId}/weekly-evaluation-instructors`, {
+        let normalizedSatelliteId = normalizeSatelliteId(satelliteId);
+
+        if (!normalizedSatelliteId) {
+          normalizedSatelliteId = normalizeSatelliteId(getCurrentUserSatelliteId(currentUser));
+        }
+
+        if (!normalizedSatelliteId) {
+          const savedSatellite = sessionStorage.getItem('selectedSatellite');
+          if (savedSatellite) {
+            try {
+              const parsed = JSON.parse(savedSatellite);
+              normalizedSatelliteId = normalizeSatelliteId(parsed?.id);
+            } catch (error) {
+              console.error('selectedSatelliteパースエラー:', error);
+            }
+          }
+        }
+
+        if (!normalizedSatelliteId) {
+          console.warn('拠点IDが取得できなかったため、指導員リストを取得できませんでした');
+          return;
+        }
+
+        const response = await apiCall(`/api/users/satellite/${normalizedSatelliteId}/weekly-evaluation-instructors`, {
           method: 'GET'
         });
         
@@ -320,8 +424,27 @@ const MonthlyEvaluationHistoryPage = () => {
   // 編集開始
   const handleEdit = () => {
     if (selectedEvaluation) {
+      // 日付をYYYY-MM-DD形式に正規化
+      const normalizeDateForInput = (dateValue) => {
+        if (!dateValue) return '';
+        if (typeof dateValue === 'string' && dateValue.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          return dateValue;
+        }
+        const date = new Date(dateValue);
+        if (!Number.isNaN(date.getTime())) {
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        }
+        return '';
+      };
+
       setEditingEvaluation({
         ...selectedEvaluation,
+        date: normalizeDateForInput(selectedEvaluation.date || selectedEvaluation.createdDate),
+        startDate: normalizeDateForInput(selectedEvaluation.startDate),
+        endDate: normalizeDateForInput(selectedEvaluation.endDate),
         startTime: normalizeTimeForInput(selectedEvaluation.startTime),
         endTime: normalizeTimeForInput(selectedEvaluation.endTime)
       });
@@ -346,9 +469,21 @@ const MonthlyEvaluationHistoryPage = () => {
       return;
     }
 
+    if (!editingEvaluation.date) {
+      alert('評価作成日は必須項目です。');
+      return;
+    }
+
     setIsSaving(true);
     try {
       const backendData = convertFrontendToBackend(editingEvaluation);
+      console.log('保存するデータ:', {
+        editingEvaluation,
+        backendData,
+        mark_start: backendData.mark_start,
+        mark_end: backendData.mark_end,
+        date: backendData.date
+      });
       const response = await apiCall(`/api/monthly-evaluations/${selectedEvaluation.id}`, {
         method: 'PUT',
         body: JSON.stringify(backendData)
@@ -392,6 +527,69 @@ const MonthlyEvaluationHistoryPage = () => {
         ...editingEvaluation,
         [field]: value
       });
+    }
+  };
+
+  // 削除処理
+  const handleDelete = async () => {
+    if (!selectedEvaluation) {
+      alert('削除する評価が見つかりません。');
+      return;
+    }
+
+    // 削除確認ダイアログ
+    const confirmMessage = `この月報を削除しますか？\n\n評価期間: ${new Date(selectedEvaluation.startDate).toLocaleDateString('ja-JP')} 〜 ${new Date(selectedEvaluation.endDate).toLocaleDateString('ja-JP')}\n\nこの操作は取り消せません。`;
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      const response = await apiCall(`/api/monthly-evaluations/${selectedEvaluation.id}`, {
+        method: 'DELETE'
+      });
+
+      if (response.success) {
+        alert('月報を削除しました。');
+        
+        // データを再取得
+        const refreshResponse = await apiCall(`/api/monthly-evaluations/user/${userId}`, {
+          method: 'GET'
+        });
+        
+        if (refreshResponse.success && refreshResponse.data) {
+          const convertedEvaluations = refreshResponse.data.map(convertBackendToFrontend);
+          setEvaluations(convertedEvaluations);
+          
+          // 削除後の評価を選択
+          if (convertedEvaluations.length > 0) {
+            // 削除された評価のインデックスを取得
+            const deletedIndex = evaluations.findIndex(e => e.id === selectedEvaluation.id);
+            
+            // 削除された評価が最後のものだった場合、前の評価を選択
+            if (deletedIndex >= convertedEvaluations.length) {
+              setSelectedEvaluationId(convertedEvaluations[convertedEvaluations.length - 1].id);
+            } else {
+              // それ以外の場合は、同じインデックスの評価を選択（存在する場合）
+              setSelectedEvaluationId(convertedEvaluations[deletedIndex]?.id || convertedEvaluations[0].id);
+            }
+          } else {
+            // 評価がなくなった場合
+            setSelectedEvaluationId(null);
+          }
+        } else {
+          // 再取得に失敗した場合でも、削除は成功しているのでリストをクリア
+          setEvaluations([]);
+          setSelectedEvaluationId(null);
+        }
+      } else {
+        alert('削除に失敗しました: ' + (response.message || 'エラーが発生しました'));
+      }
+    } catch (error) {
+      console.error('削除エラー:', error);
+      alert('削除中にエラーが発生しました: ' + error.message);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -451,20 +649,43 @@ const MonthlyEvaluationHistoryPage = () => {
 
       const formatTime = (timeStr) => {
         if (!timeStr) return '';
-        // 時間文字列から時間部分を抽出（HH:MM形式）
-        if (typeof timeStr === 'string') {
-          const match = timeStr.match(/(\d{2}):(\d{2})/);
-          if (match) {
-            return `${match[1]}:${match[2]}`;
-          }
+        
+        // 既にHH:MM形式の場合はそのまま返す
+        if (typeof timeStr === 'string' && timeStr.match(/^\d{2}:\d{2}$/)) {
+          return timeStr;
         }
-        // Dateオブジェクトの場合
+        
+        // UTC時刻の文字列またはDateオブジェクトを日本時間に変換
+        let date;
         if (timeStr instanceof Date) {
-          const hours = String(timeStr.getHours()).padStart(2, '0');
-          const minutes = String(timeStr.getMinutes()).padStart(2, '0');
-          return `${hours}:${minutes}`;
+          date = timeStr;
+        } else if (typeof timeStr === 'string') {
+          // UTC時刻の文字列として解釈（YYYY-MM-DD HH:MM:SS形式またはISO形式）
+          date = new Date(timeStr);
+          if (Number.isNaN(date.getTime())) {
+            // 日時文字列として解釈できない場合は、時間部分のみを抽出
+            const match = timeStr.match(/(\d{2}):(\d{2})/);
+            if (match) {
+              return `${match[1]}:${match[2]}`;
+            }
+            return '';
+          }
+        } else {
+          return '';
         }
-        return timeStr;
+        
+        // 日本時間に変換してHH:MM形式で返す
+        const parts = tokyoTimeFormatter.formatToParts(date).reduce((acc, part) => {
+          acc[part.type] = part.value;
+          return acc;
+        }, {});
+        
+        if (parts.hour && parts.minute) {
+          return `${parts.hour}:${parts.minute}`;
+        }
+        
+        // フォールバック: 直接フォーマット
+        return tokyoTimeFormatter.format(date);
       };
 
       const updateCell = (cellAddress, value) => {
@@ -511,14 +732,14 @@ const MonthlyEvaluationHistoryPage = () => {
         updateCell('V6', formatTime(selectedEvaluation.endTime));
       }
 
-      // 実施方法
+      // 実施方法（通所→D列、訪問→G列、その他→J列にチェック）
       const methodValue = String(selectedEvaluation.method || '').trim();
       if (methodValue === '通所') {
         updateCell('D7', '✓');
       } else if (methodValue === '訪問') {
-        updateCell('F7', '✓');
+        updateCell('G7', '✓');
       } else if (methodValue === 'その他') {
-        updateCell('H7', '✓');
+        updateCell('J7', '✓');
         if (selectedEvaluation.methodOther) {
           updateCell('K7', selectedEvaluation.methodOther);
         }
@@ -662,12 +883,21 @@ const MonthlyEvaluationHistoryPage = () => {
               </div>
               <div className="flex gap-2">
                 {!isEditing && selectedEvaluation && (
-                  <button 
-                    onClick={handleEdit}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-                  >
-                    ✏️ 編集
-                  </button>
+                  <>
+                    <button 
+                      onClick={handleEdit}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                    >
+                      ✏️ 編集
+                    </button>
+                    <button 
+                      onClick={handleDelete}
+                      disabled={isDeleting}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isDeleting ? '⏳ 削除中...' : '🗑️ 削除'}
+                    </button>
+                  </>
                 )}
                 <button 
                   onClick={handleDownloadExcel}
@@ -683,43 +913,85 @@ const MonthlyEvaluationHistoryPage = () => {
           {/* 評価期間ナビゲーション */}
           <div className="bg-gray-50 rounded-xl p-4">
             <div className="flex items-center justify-between gap-4">
-              <button
-                onClick={() => {
-                  const currentIndex = evaluations.findIndex(e => e.id === selectedEvaluationId);
-                  if (currentIndex < evaluations.length - 1) {
-                    setSelectedEvaluationId(evaluations[currentIndex + 1].id);
-                  }
-                }}
-                disabled={evaluations.findIndex(e => e.id === selectedEvaluationId) >= evaluations.length - 1}
-                className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
-              >
-                ← 前回記録
-              </button>
+              {!isEditing && (
+                <button
+                  onClick={() => {
+                    const currentIndex = evaluations.findIndex(e => e.id === selectedEvaluationId);
+                    if (currentIndex < evaluations.length - 1) {
+                      setSelectedEvaluationId(evaluations[currentIndex + 1].id);
+                    }
+                  }}
+                  disabled={evaluations.findIndex(e => e.id === selectedEvaluationId) >= evaluations.length - 1}
+                  className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+                >
+                  ← 前回記録
+                </button>
+              )}
               
               <div className="flex-1 text-center">
-                <div className="font-bold text-lg text-gray-800">
-                  {selectedEvaluation && `${new Date(selectedEvaluation.startDate).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })} 〜 ${new Date(selectedEvaluation.endDate).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })}`}
-                </div>
-                <div className="text-sm text-gray-600 mt-1">
-                  評価作成日: {selectedEvaluation && new Date(selectedEvaluation.createdDate).toLocaleDateString('ja-JP')}
-                </div>
-                <div className="text-xs text-gray-500 mt-1">
-                  {evaluations.length > 0 && `${evaluations.findIndex(e => e.id === selectedEvaluationId) + 1} / ${evaluations.length} 件`}
-                </div>
+                {isEditing && editingEvaluation ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-center gap-4">
+                      <div className="flex flex-col items-center">
+                        <label className="text-sm text-gray-600 mb-1">開始日</label>
+                        <input
+                          type="date"
+                          value={editingEvaluation.startDate || ''}
+                          onChange={(e) => updateEditingField('startDate', e.target.value)}
+                          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-semibold text-gray-800"
+                        />
+                      </div>
+                      <span className="text-lg font-bold text-gray-600 mt-6">〜</span>
+                      <div className="flex flex-col items-center">
+                        <label className="text-sm text-gray-600 mb-1">終了日</label>
+                        <input
+                          type="date"
+                          value={editingEvaluation.endDate || ''}
+                          onChange={(e) => updateEditingField('endDate', e.target.value)}
+                          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-semibold text-gray-800"
+                        />
+                      </div>
+                    </div>
+                    <div className="text-sm text-gray-600 mt-2">
+                      評価作成日: {isEditing && editingEvaluation ? (
+                        editingEvaluation.date ? new Date(editingEvaluation.date).toLocaleDateString('ja-JP') : ''
+                      ) : (
+                        selectedEvaluation && new Date(selectedEvaluation.date || selectedEvaluation.createdDate).toLocaleDateString('ja-JP')
+                      )}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {evaluations.length > 0 && `${evaluations.findIndex(e => e.id === selectedEvaluationId) + 1} / ${evaluations.length} 件`}
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="font-bold text-lg text-gray-800">
+                      {selectedEvaluation && `${new Date(selectedEvaluation.startDate).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })} 〜 ${new Date(selectedEvaluation.endDate).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })}`}
+                    </div>
+                    <div className="text-sm text-gray-600 mt-1">
+                      評価作成日: {selectedEvaluation && new Date(selectedEvaluation.date || selectedEvaluation.createdDate).toLocaleDateString('ja-JP')}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      {evaluations.length > 0 && `${evaluations.findIndex(e => e.id === selectedEvaluationId) + 1} / ${evaluations.length} 件`}
+                    </div>
+                  </>
+                )}
               </div>
               
-              <button
-                onClick={() => {
-                  const currentIndex = evaluations.findIndex(e => e.id === selectedEvaluationId);
-                  if (currentIndex > 0) {
-                    setSelectedEvaluationId(evaluations[currentIndex - 1].id);
-                  }
-                }}
-                disabled={evaluations.findIndex(e => e.id === selectedEvaluationId) <= 0}
-                className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
-              >
-                次回記録 →
-              </button>
+              {!isEditing && (
+                <button
+                  onClick={() => {
+                    const currentIndex = evaluations.findIndex(e => e.id === selectedEvaluationId);
+                    if (currentIndex > 0) {
+                      setSelectedEvaluationId(evaluations[currentIndex - 1].id);
+                    }
+                  }}
+                  disabled={evaluations.findIndex(e => e.id === selectedEvaluationId) <= 0}
+                  className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+                >
+                  次回記録 →
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -741,7 +1013,7 @@ const MonthlyEvaluationHistoryPage = () => {
                 <span className="font-semibold">評価期間:</span> {selectedEvaluation && `${new Date(selectedEvaluation.startDate).toLocaleDateString('ja-JP')} 〜 ${new Date(selectedEvaluation.endDate).toLocaleDateString('ja-JP')}`}
               </div>
               <div>
-                <span className="font-semibold">評価作成日:</span> {selectedEvaluation && new Date(selectedEvaluation.createdDate).toLocaleDateString('ja-JP')}
+                <span className="font-semibold">評価作成日:</span> {selectedEvaluation && new Date(selectedEvaluation.date || selectedEvaluation.createdDate).toLocaleDateString('ja-JP')}
               </div>
             </div>
           </div>
@@ -804,11 +1076,11 @@ const MonthlyEvaluationHistoryPage = () => {
                   <div className="grid grid-cols-2 gap-4 bg-gray-50 rounded-lg p-4">
                     <div>
                       <div className="text-sm text-gray-600 mb-1">開始時間</div>
-                      <div className="text-xl font-bold text-blue-600">{formatDateTimeForDisplay(selectedEvaluation.startTime) || '未設定'}</div>
+                      <div className="text-xl font-bold text-blue-600">{formatTimeForDisplay(selectedEvaluation.startTime) || '未設定'}</div>
                     </div>
                     <div>
                       <div className="text-sm text-gray-600 mb-1">終了時間</div>
-                      <div className="text-xl font-bold text-blue-600">{formatDateTimeForDisplay(selectedEvaluation.endTime) || '未設定'}</div>
+                      <div className="text-xl font-bold text-blue-600">{formatTimeForDisplay(selectedEvaluation.endTime) || '未設定'}</div>
                     </div>
                   </div>
                 )}
@@ -1040,12 +1312,13 @@ const MonthlyEvaluationHistoryPage = () => {
               <section className="pt-6 border-t-2 border-gray-300 print:break-inside-avoid">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 rounded-lg p-4">
                   <div>
-                    <div className="text-sm text-gray-600 mb-1">評価作成日</div>
+                    <div className="text-sm text-gray-600 mb-1">評価作成日 <span className="text-red-500">*</span></div>
                     {isEditing ? (
                       <input
                         type="date"
-                        value={editingEvaluation?.date || ''}
+                        value={editingEvaluation?.date || editingEvaluation?.createdDate || ''}
                         onChange={(e) => updateEditingField('date', e.target.value)}
+                        required
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                       />
                     ) : (

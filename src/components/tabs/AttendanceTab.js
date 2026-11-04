@@ -49,10 +49,11 @@ const AttendanceTab = () => {
 
     loadSatellite();
 
-    // 拠点変更イベントを監視
+    // 拠点変更イベントを監視（newLocation と satellite の両方に対応）
     const handleSatelliteChanged = (e) => {
-      if (e.detail && e.detail.satellite) {
-        setCurrentSatellite(e.detail.satellite);
+      const newLocation = e.detail?.newLocation || e.detail?.satellite;
+      if (newLocation) {
+        setCurrentSatellite(newLocation);
       }
     };
 
@@ -122,6 +123,7 @@ const AttendanceTab = () => {
   const getStatusBadge = (status) => {
     const statusConfig = {
       '通所': { bg: 'bg-blue-100', text: 'text-blue-800' },
+      '業務終了': { bg: 'bg-green-100', text: 'text-green-800' },
       '作業中': { bg: 'bg-green-100', text: 'text-green-800' },
       '休憩中': { bg: 'bg-yellow-100', text: 'text-yellow-800' },
       '未開始': { bg: 'bg-red-100', text: 'text-red-800' }

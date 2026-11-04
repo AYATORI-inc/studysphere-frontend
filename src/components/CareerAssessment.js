@@ -1,32 +1,61 @@
 import React, { useState } from 'react';
 import { useAuth } from './contexts/AuthContext';
+import { API_BASE_URL } from '../config/apiConfig';
 
 const CareerAssessment = () => {
   const { currentUser } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  const handleCareerAssessmentClick = () => {
+  const handleCareerAssessmentClick = async () => {
     setIsLoading(true);
+    setError(null);
     
     try {
       // 利用者のアクセストークンを取得
       const accessToken = localStorage.getItem('accessToken');
       
       if (!accessToken) {
-        alert('認証トークンが見つかりません。再度ログインしてください。');
+        setError('認証トークンが見つかりません。再度ログインしてください。');
         setIsLoading(false);
         return;
       }
 
-      // 適職診断ページのURLを構築（トークンをクエリパラメータとして追加）
-      const careerAssessmentUrl = `https://findjob.myou-kou.com/useraccess?token=${encodeURIComponent(accessToken)}`;
+      // SSOチケット生成APIを呼び出し
+      const response = await fetch(`${API_BASE_URL}/api/sso/ticket/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({
+          target_system: 'findjob',
+          source_system: 'studysphere',
+          context: 'career_assessment'
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'SSOチケットの生成に失敗しました');
+      }
+
+      const result = await response.json();
+      
+      if (!result.success || !result.data?.ticket) {
+        throw new Error('SSOチケットの生成に失敗しました');
+      }
+
+      // 生成されたチケットを使ってfindjobのauto-loginページにリダイレクト
+      const ticket = result.data.ticket;
+      const careerAssessmentUrl = `https://findjob.myou-kou.com/auto-login?ticket=${encodeURIComponent(ticket)}`;
       
       // 新しいタブで適職診断ページを開く
       window.open(careerAssessmentUrl, '_blank');
       
     } catch (error) {
       console.error('適職診断ページへの遷移エラー:', error);
-      alert('適職診断ページへの遷移に失敗しました。');
+      setError(error.message || '適職診断ページへの遷移に失敗しました。');
     } finally {
       setIsLoading(false);
     }
@@ -106,6 +135,13 @@ const CareerAssessment = () => {
               '🎯 適職診断を開始する'
             )}
           </button>
+
+          {error && (
+            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <div className="text-red-700 font-medium mb-2">エラー</div>
+              <div className="text-red-600 text-sm">{error}</div>
+            </div>
+          )}
         </div>
 
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
