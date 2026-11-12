@@ -32,7 +32,7 @@ const ToyBox = () => {
         <div className="mb-8">
           <div className="flex justify-center mb-4">
             <img 
-              src="/images/toybox/TOYBOX.png" 
+              src="/images/toybox/TOYBOX.webp" 
               alt="TOYBOX" 
               className="h-16 object-contain"
             />
@@ -103,7 +103,7 @@ const ToyBox = () => {
             ) : (
               <div className="flex items-center justify-center gap-2">
                 <img 
-                  src="/images/toybox/TOYBOX.png" 
+                  src="/images/toybox/TOYBOX.webp" 
                   alt="TOYBOX" 
                   className="h-5 w-auto object-contain"
                 />

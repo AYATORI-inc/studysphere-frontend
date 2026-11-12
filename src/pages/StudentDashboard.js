@@ -701,7 +701,7 @@ const StudentDashboard = () => {
               onClick={() => handleTabChange('toybox')}
             >
               <img 
-                src="/images/toybox/TOYBOX.png" 
+                src="/images/toybox/TOYBOX.webp" 
                 alt="TOYBOX" 
                 className="h-5 w-auto object-contain"
               />

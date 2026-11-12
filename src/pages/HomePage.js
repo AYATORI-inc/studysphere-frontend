@@ -9,13 +9,13 @@ const HomePage = () => {
   // ランダム背景画像の設定
   useEffect(() => {
     const randomNumber = Math.floor(Math.random() * 7) + 1;
-    setBackgroundImage(`/images/background/${randomNumber}.png`);
+    setBackgroundImage(`/images/background/${randomNumber}.webp`);
   }, []);
 
   // ランダムキャラクター画像の設定
   useEffect(() => {
     const randomNumber = Math.floor(Math.random() * 6) + 1;
-    setCharacterImage(`/images/mio/${randomNumber}.png`);
+    setCharacterImage(`/images/mio/${randomNumber}.webp`);
   }, []);
 
   return (

@@ -43,6 +43,7 @@ const isAuthRequiredEndpoint = (url) => {
     /\.jpg$/,
     /\.jpeg$/,
     /\.gif$/,
+    /\.webp$/,
     /\.svg$/,
     /\.ico$/,
     /\.woff$/,
