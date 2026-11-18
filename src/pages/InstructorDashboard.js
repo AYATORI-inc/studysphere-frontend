@@ -40,11 +40,13 @@ const InstructorDashboard = () => {
   console.log('Current hash:', window.location.hash);
   
   const [activeTab, setActiveTab] = useState(() => {
-    // sessionStorageからタブの状態を復元
+    const allowedTabs = ['overview', 'students', 'location', 'learning-preview', 'settings'];
+    const tabFromUrl = new URLSearchParams(window.location.search).get('tab');
+    if (tabFromUrl && allowedTabs.includes(tabFromUrl)) {
+      return tabFromUrl;
+    }
     const savedTab = sessionStorage.getItem('instructorDashboardActiveTab');
-    return savedTab && ['overview', 'students', 'location', 'learning-preview', 'settings'].includes(savedTab) 
-      ? savedTab 
-      : 'overview';
+    return savedTab && allowedTabs.includes(savedTab) ? savedTab : 'overview';
   });
 
   const [showPasswordChangeForm, setShowPasswordChangeForm] = useState(false);
@@ -127,7 +129,7 @@ const InstructorDashboard = () => {
     
     // URLパラメータからタブを設定（初回のみ）
     if (!localUser) {
-      const initialTab = location.search.split('tab=')[1];
+      const initialTab = new URLSearchParams(location.search).get('tab');
       if (initialTab && ['overview', 'students', 'location', 'learning-preview', 'settings'].includes(initialTab)) {
         setActiveTab(initialTab);
         sessionStorage.setItem('instructorDashboardActiveTab', initialTab);

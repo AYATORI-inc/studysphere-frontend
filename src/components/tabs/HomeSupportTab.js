@@ -2,10 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getCurrentUser } from '../../utils/userContext';
 import { getCurrentJapanTime, formatJapanDate } from '../../utils/dateUtils';
-import { getSatelliteHomeSupportUsersWithDailyRecords, removeHomeSupportFlag, getSatelliteEvaluationStatus, createOfficeVisitRecord, getSatelliteSupportPlanGoalDates, getSatelliteSupportPlanStatus } from '../../utils/api';
+import { getSatelliteHomeSupportUsersWithDailyRecords, removeHomeSupportFlag, getSatelliteEvaluationStatus, getSatelliteSupportPlanGoalDates, getSatelliteSupportPlanStatus } from '../../utils/api';
 import HomeSupportUserAdditionModal from '../HomeSupportUserAdditionModal';
 import DailySupportRecordModal from '../DailySupportRecordModal';
-import OfficeVisitModal from '../modals/OfficeVisitModal';
 import HomeSupportUserDetailModal from '../modals/HomeSupportUserDetailModal';
 
 const HomeSupportTab = () => {
@@ -16,10 +15,8 @@ const HomeSupportTab = () => {
   const [selectedTags, setSelectedTags] = useState([]);
   const [statusFilter, setStatusFilter] = useState('all');
   const [showDailySupportRecordModal, setShowDailySupportRecordModal] = useState(false);
-  const [showOfficeVisitModal, setShowOfficeVisitModal] = useState(false);
   const [showUserDetailModal, setShowUserDetailModal] = useState(false);
   const [selectedStudentForDailyRecord, setSelectedStudentForDailyRecord] = useState(null);
-  const [selectedStudentForOfficeVisit, setSelectedStudentForOfficeVisit] = useState(null);
   const [selectedStudentForDetail, setSelectedStudentForDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [currentSatellite, setCurrentSatellite] = useState(null);
@@ -539,10 +536,6 @@ const HomeSupportTab = () => {
     setSelectedStudentForDailyRecord(student);
     setShowDailySupportRecordModal(true);
   };
-  const startOfficeVisit = (student) => {
-    setSelectedStudentForOfficeVisit(student);
-    setShowOfficeVisitModal(true);
-  };
   const startUserDetail = (student) => {
     setSelectedStudentForDetail(student);
     setShowUserDetailModal(true);
@@ -569,36 +562,6 @@ const HomeSupportTab = () => {
     fetchEvaluationStatus();
     // 他のコンポーネントにも通知
     window.dispatchEvent(new CustomEvent('homeSupportUserAdded'));
-  };
-
-  // 通所記録を保存
-  const handleSaveOfficeVisit = async (data) => {
-    try {
-      // 解除の場合は既にOfficeVisitModal内で処理済みなので、データの再取得のみ行う
-      if (data.action === 'remove') {
-        alert(`${data.userName}さんの通所記録を解除しました`);
-        setShowOfficeVisitModal(false);
-        setSelectedStudentForOfficeVisit(null);
-        fetchHomeSupportUsers();
-        fetchEvaluationStatus();
-        return;
-      }
-
-      const response = await createOfficeVisitRecord(data.userId, data.visitDate);
-      
-      if (response.success) {
-        alert(`${data.userName}さんの通所記録を設定しました`);
-        setShowOfficeVisitModal(false);
-        setSelectedStudentForOfficeVisit(null);
-        fetchHomeSupportUsers();
-        fetchEvaluationStatus();
-      } else {
-        alert(`通所記録の設定に失敗しました: ${response.message}`);
-      }
-    } catch (error) {
-      console.error('通所記録保存エラー:', error);
-      alert('通所記録の設定に失敗しました');
-    }
   };
 
   // 在宅支援解除機能
@@ -912,12 +875,7 @@ const HomeSupportTab = () => {
                       >
                         📝 支援記録
                       </button>
-                      <button
-                        className="px-3 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg font-medium transition-all duration-200 text-sm"
-                        onClick={() => startOfficeVisit(student)}
-                      >
-                        🏢 通所
-                      </button>
+                      {/* 通所記録の登録・取得・解除APIが未実装のため、通所ボタンは非表示 */}
                       <button
                         className="px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-all duration-200 text-sm"
                         onClick={() => startWeeklyEvaluation(student)}
@@ -981,22 +939,6 @@ const HomeSupportTab = () => {
             recipientNumber: selectedStudentForDailyRecord.email
           }}
           date={new Date().toISOString().split('T')[0]}
-        />
-      )}
-
-      {/* 通所記録モーダル */}
-      {showOfficeVisitModal && selectedStudentForOfficeVisit && (
-        <OfficeVisitModal
-          isOpen={showOfficeVisitModal}
-          onClose={() => {
-            setShowOfficeVisitModal(false);
-            setSelectedStudentForOfficeVisit(null);
-          }}
-          onSave={handleSaveOfficeVisit}
-          student={{
-            id: selectedStudentForOfficeVisit.id,
-            name: selectedStudentForOfficeVisit.name
-          }}
         />
       )}
 

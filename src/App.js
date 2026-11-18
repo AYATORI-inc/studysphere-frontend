@@ -5,6 +5,7 @@ import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import AdminDashboard from './pages/AdminDashboard';
 import InstructorDashboard from './pages/InstructorDashboard';
+import TmpDashboard from './pages/TmpDashboard';
 import StudentLogin from './pages/StudentLogin';
 import StudentDashboard from './pages/StudentDashboard';
 import AutoLoginPage from './pages/AutoLoginPage';
@@ -71,11 +72,14 @@ function App() {
             {/* 管理者用ダッシュボード */}
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
             {/* 指導員用ダッシュボード */}
-            <Route path="/instructor/dashboard" element={<InstructorDashboard />} />
+            <Route path="/instructor/dashboard" element={<TmpDashboard />} />
+            <Route path="/instructor/tmp_dashboard" element={<Navigate to="/instructor/dashboard" replace />} />
+            {/* 従来の指導員ダッシュボード */}
+            <Route path="/instructor/old-dashboard" element={<InstructorDashboard />} />
             {/* 在宅支援専用ダッシュボード */}
             <Route path="/instructor/home-support" element={<HomeSupportDashboard />} />
             {/* 互換性のため古いパスも残す */}
-            <Route path="/teacher/dashboard" element={<InstructorDashboard />} />
+            <Route path="/teacher/dashboard" element={<TmpDashboard />} />
             {/* 利用者用ログイン（トークンベース） */}
             <Route path="/student/login/:token" element={<StudentLogin />} />
             {/* 利用者用ログイン（パラメータなし） */}

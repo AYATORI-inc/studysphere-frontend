@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { getCurrentUserSatelliteId } from '../utils/locationUtils';
 import { getSatelliteUsers, getSatelliteInstructors } from '../utils/api';
@@ -24,6 +24,7 @@ import { API_BASE_URL } from '../config/apiConfig';
 const StudentManagementRefactored = ({ teacherId, onTestApproval, onSubmissionApproval }) => {
   const { currentUser, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   
   // 基本状態管理
   const [students, setStudents] = useState([]);
@@ -44,6 +45,18 @@ const StudentManagementRefactored = ({ teacherId, onTestApproval, onSubmissionAp
   
   // 今日の活動メッセージ関連のstate
   const [showTodayActiveModal, setShowTodayActiveModal] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('action') !== 'issue-temp-password') return;
+    setShowTodayActiveModal(true);
+    params.delete('action');
+    const query = params.toString();
+    navigate(
+      { pathname: location.pathname, search: query ? `?${query}` : '' },
+      { replace: true }
+    );
+  }, [location.pathname, location.search, navigate]);
 
   // 学習コース追加モーダルの状態
   const [showCourseAssignmentModal, setShowCourseAssignmentModal] = useState(false);

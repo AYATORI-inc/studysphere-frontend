@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getCurrentUserSatelliteId } from '../../utils/locationUtils';
 import { API_BASE_URL } from '../../config/apiConfig';
@@ -386,7 +386,9 @@ const LearningPreviewPanel = () => {
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-3">
-                  <h1 className="text-2xl font-bold text-white">Study Sphere</h1>
+                  <Link to="/instructor/dashboard" className="text-2xl font-bold text-white leading-none hover:opacity-80">
+                    Study Sphere
+                  </Link>
                   <span className="px-3 py-1 bg-white bg-opacity-20 rounded-full text-sm font-semibold">
                     利用者
                   </span>

@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useInstructorGuard } from '../utils/hooks/useAuthGuard';
 import InstructorHeader from '../components/InstructorHeader';
 import HomeSupportTab from '../components/tabs/HomeSupportTab';
@@ -37,7 +36,6 @@ const HomeSupportDashboard = () => {
   const [localUser, setLocalUser] = useState(null);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
-  const navigate = useNavigate();
   const { currentUser: authUser, logout } = useInstructorGuard();
 
   useEffect(() => {
@@ -217,24 +215,6 @@ const HomeSupportDashboard = () => {
         user={localUser} 
         onLogout={logout}
         onLocationChange={handleLocationChange}
-        showBackButton={true}
-        backButtonText="指導員ダッシュボードに戻る"
-        onBackClick={() => {
-          // 戻る前に現在の拠点情報を保存
-          if (localUser) {
-            const currentLocation = {
-              id: localUser.satellite_id,
-              name: localUser.satellite_name,
-              company_id: localUser.company_id,
-              company_name: localUser.company_name,
-              type: localUser.location?.type || '就労移行支援事業所',
-              organization: localUser.location?.organization || 'スタディスフィア株式会社'
-            };
-            sessionStorage.setItem('selectedSatellite', JSON.stringify(currentLocation));
-            console.log('指導員ダッシュボード遷移前に拠点情報を保存:', currentLocation);
-          }
-          navigate('/instructor/dashboard');
-        }}
         showLocationSelector={true}
       />
       

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { logAdminAccountOperation } from '../utils/adminLogger';
 import { getUserInfo, reauthenticateForSatellite } from '../utils/api';
@@ -506,7 +507,12 @@ const InstructorHeader = ({ user, onLocationChange, showBackButton = false, back
               {backButtonText}
             </button>
           )}
-          <h1 className="text-2xl font-bold text-white m-0">Study Sphere</h1>
+          <Link
+            to="/instructor/dashboard"
+            className="text-2xl font-bold text-white m-0 leading-none hover:opacity-80"
+          >
+            Study Sphere
+          </Link>
         </div>
         <div className="flex items-center gap-4">
                      <div className="flex items-center gap-4">

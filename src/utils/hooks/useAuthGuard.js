@@ -54,7 +54,8 @@ export const useAuthGuard = () => {
     // 指導員ダッシュボード選択中はリダイレクトを無効にする
     if (isAuthenticated && currentUser && currentUser.role >= 9) {
       // 企業・拠点選択画面や指導員ダッシュボードへの遷移中は管理者ダッシュボードへのリダイレクトを無効
-      if (pathname.startsWith('/instructor/dashboard') || 
+      if (pathname.startsWith('/instructor/dashboard') ||
+          pathname.startsWith('/instructor/old-dashboard') ||
           pathname.includes('company-selection') || 
           pathname.includes('satellite-selection')) {
         console.log('Admin user accessing instructor dashboard or selection pages - allowing access');
@@ -67,7 +68,7 @@ export const useAuthGuard = () => {
       const role = currentUser.role;
       
       // 管理者（ロール9以上）が指導員ダッシュボードにアクセスしている場合は許可
-      if (role >= 9 && pathname.startsWith('/instructor/dashboard')) {
+      if (role >= 9 && (pathname.startsWith('/instructor/dashboard') || pathname.startsWith('/instructor/old-dashboard'))) {
         console.log('Admin user accessing instructor dashboard - allowing access');
         return;
       }
