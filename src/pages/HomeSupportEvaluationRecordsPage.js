@@ -79,7 +79,7 @@ const HomeSupportEvaluationRecordsPage = () => {
             旧画面を開く
           </Link>
         </div>
-        <EvaluationsTab showSupportRecord={false} />
+        <EvaluationsTab showSupportRecord={false} alwaysShowCreate />
       </main>
     </div>
   );

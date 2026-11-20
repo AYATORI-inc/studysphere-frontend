@@ -128,7 +128,6 @@ const MessageSender = () => {
                                 {student.name}
                                 {Boolean(student.is_my_assigned) && ' ★'}
                                 {student.satellite_name && ` (${student.satellite_name})`}
-                                {student.company_name && ` - ${student.company_name}`}
                                 {student.instructor_name && ` [担当: ${student.instructor_name}]`}
                             </option>
                         ))}
@@ -147,9 +146,6 @@ const MessageSender = () => {
                             <p><strong>ログインコード:</strong> {selectedStudent.login_code}</p>
                             {selectedStudent.satellite_name && (
                                 <p><strong>拠点:</strong> {selectedStudent.satellite_name}</p>
-                            )}
-                            {selectedStudent.company_name && (
-                                <p><strong>企業:</strong> {selectedStudent.company_name}</p>
                             )}
                             {selectedStudent.instructor_name && (
                                 <p><strong>担当指導員:</strong> {selectedStudent.instructor_name}</p>
@@ -226,9 +222,10 @@ const MessageSender = () => {
                                             {Boolean(student.is_my_assigned) && ' ★'}
                                         </p>
                                         <p className="text-xs text-gray-500">
-                                            {student.satellite_name && `${student.satellite_name} | `}
-                                            {student.company_name}
-                                            {student.instructor_name && ` | 担当: ${student.instructor_name}`}
+                                            {[
+                                                student.satellite_name,
+                                                student.instructor_name && `担当: ${student.instructor_name}`,
+                                            ].filter(Boolean).join(' | ')}
                                         </p>
                                     </div>
                                     {student.tags && (

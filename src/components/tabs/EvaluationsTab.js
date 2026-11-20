@@ -8,6 +8,7 @@ import { buildRecordAlerts, groupHomeSupportUsers } from '../../utils/dashboardW
 const EvaluationsTab = ({
   handleDailySupportRecordClick,
   showSupportRecord = true,
+  alwaysShowCreate = false,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
@@ -450,37 +451,38 @@ const EvaluationsTab = ({
                               📝 支援記録
                             </button>
                           )}
-                          {user.weeklyStatus === '未完了' && (
+                          {(alwaysShowCreate || user.weeklyStatus === '未完了') && (
                             <button 
                               onClick={() => navigateWithLocation(`/instructor/home-support/weekly-evaluation/${user.id}`)}
                               className="text-white text-sm px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 transition-colors duration-200"
                             >
-                              📊 評価(週次)
+                              {alwaysShowCreate ? '📊 評価(週次) 新規作成' : '📊 評価(週次)'}
                             </button>
                           )}
-                          {user.monthlyStatus === '未完了' && (
+                          {(alwaysShowCreate || user.monthlyStatus === '未完了') && (
                             <button 
                               onClick={() => navigateWithLocation(`/instructor/home-support/monthly-evaluation/${user.id}`)}
                               className="text-white text-sm px-3 py-1 rounded bg-purple-600 hover:bg-purple-700 transition-colors duration-200"
                             >
-                              📈 達成度評価(月次)
+                              {alwaysShowCreate ? '📈 達成度評価(月次) 新規作成' : '📈 達成度評価(月次)'}
                             </button>
                           )}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex flex-wrap gap-2">
-                          <button 
-                            onClick={() => navigateWithLocation(`/instructor/home-support/records/${user.id}`)}
-                            className="text-white text-sm px-3 py-1 rounded bg-indigo-600 hover:bg-indigo-700 transition-colors duration-200"
+                          <button
+                            onClick={() => {
+                              if (currentSatellite) {
+                                sessionStorage.setItem('selectedSatellite', JSON.stringify(currentSatellite));
+                              }
+                              navigate(`/instructor/home-support/achievements/${user.id}`, {
+                                state: { userName: user.name },
+                              });
+                            }}
+                            className="text-white text-sm px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-700 transition-colors duration-200"
                           >
-                            📄 就労支援記録出力
-                          </button>
-                          <button 
-                            onClick={() => navigateWithLocation(`/instructor/home-support/monthly-evaluation-history/${user.id}`)}
-                            className="text-white text-sm px-3 py-1 rounded bg-purple-600 hover:bg-purple-700 transition-colors duration-200"
-                          >
-                            📊 月次評価シート出力
+                            実績確認・出力
                           </button>
                         </div>
                       </td>

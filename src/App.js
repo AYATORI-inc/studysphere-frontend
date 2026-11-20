@@ -25,7 +25,15 @@ import HomeSupportDashboard from './pages/HomeSupportDashboard_new';
 import HomeSupportUsersInfoPage from './pages/HomeSupportUsersInfoPage';
 import HomeSupportTodayPage from './pages/HomeSupportTodayPage';
 import HomeSupportHistoryPage from './pages/HomeSupportHistoryPage';
+import HomeSupportPhotoHistoryPage from './pages/HomeSupportPhotoHistoryPage';
+import HomeSupportAttendancePage from './pages/HomeSupportAttendancePage';
+import InstructorLocationPage from './pages/InstructorLocationPage';
+import InstructorSettingsPage from './pages/InstructorSettingsPage';
+import InstructorTempPasswordPage from './pages/InstructorTempPasswordPage';
+import InstructorStudentsPage from './pages/InstructorStudentsPage';
+import InstructorVoicePage from './pages/InstructorVoicePage';
 import HomeSupportEvaluationRecordsPage from './pages/HomeSupportEvaluationRecordsPage';
+import HomeSupportAchievementListPage from './pages/HomeSupportAchievementListPage';
 import WeeklyEvaluationPage from './pages/WeeklyEvaluationPage';
 import MonthlyEvaluationPage from './pages/MonthlyEvaluationPage';
 import MonthlyEvaluationHistoryPage from './pages/MonthlyEvaluationHistoryPage';
@@ -80,12 +88,20 @@ function App() {
             <Route path="/instructor/tmp_dashboard" element={<Navigate to="/instructor/dashboard" replace />} />
             {/* 従来の指導員ダッシュボード */}
             <Route path="/instructor/old-dashboard" element={<InstructorDashboard />} />
+            <Route path="/instructor/location" element={<InstructorLocationPage />} />
+            <Route path="/instructor/settings" element={<InstructorSettingsPage />} />
+            <Route path="/instructor/temp-password" element={<InstructorTempPasswordPage />} />
+            <Route path="/instructor/students" element={<InstructorStudentsPage />} />
+            <Route path="/instructor/voice" element={<InstructorVoicePage />} />
             {/* 在宅支援専用ダッシュボード */}
             <Route path="/instructor/home-support" element={<HomeSupportDashboard />} />
             <Route path="/instructor/home-support/users" element={<HomeSupportUsersInfoPage />} />
             <Route path="/instructor/home-support/today" element={<HomeSupportTodayPage />} />
             <Route path="/instructor/home-support/history" element={<HomeSupportHistoryPage />} />
+            <Route path="/instructor/home-support/photos" element={<HomeSupportPhotoHistoryPage />} />
+            <Route path="/instructor/home-support/attendance" element={<HomeSupportAttendancePage />} />
             <Route path="/instructor/home-support/evaluations" element={<HomeSupportEvaluationRecordsPage />} />
+            <Route path="/instructor/home-support/achievements/:userId" element={<HomeSupportAchievementListPage />} />
             {/* 互換性のため古いパスも残す */}
             <Route path="/teacher/dashboard" element={<TmpDashboard />} />
             {/* 利用者用ログイン（トークンベース） */}

@@ -108,11 +108,11 @@ const TagManager = ({ students, onStudentsUpdate }) => {
         onStudentsUpdate(); // 親コンポーネントに更新を通知
       } else {
         const errorData = await response.json();
-        alert(`タグ一括追加に失敗しました: ${errorData.message}`);
+        alert(`タグの追加に失敗しました: ${errorData.message}`);
       }
     } catch (error) {
       console.error('タグ一括追加エラー:', error);
-      alert('タグ一括追加に失敗しました');
+      alert('タグの追加に失敗しました');
     }
   };
 

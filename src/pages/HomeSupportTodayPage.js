@@ -173,12 +173,11 @@ const HomeSupportTodayPage = () => {
   };
 
   const statistics = useMemo(() => {
-    const counts = { total: users.length, active: 0, rest: 0, completed: 0 };
+    const counts = { today: 0, active: 0, completed: 0, total: users.length };
     users.forEach((user) => {
-      const record = user.dailyRecords[0];
-      const status = attendanceStatus(record).text;
+      const status = attendanceStatus(user.dailyRecords[0]).text;
+      if (status !== '未開始') counts.today += 1;
       if (status === '作業中') counts.active += 1;
-      if (status === '休憩中') counts.rest += 1;
       if (status === '完了') counts.completed += 1;
     });
     return counts;
@@ -226,10 +225,10 @@ const HomeSupportTodayPage = () => {
 
         <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
           {[
-            { label: '総利用者数', value: statistics.total, className: 'bg-blue-50 text-blue-800' },
+            { label: '本日利用', value: statistics.today, className: 'bg-emerald-50 text-emerald-800' },
             { label: '作業中', value: statistics.active, className: 'bg-green-50 text-green-800' },
-            { label: '休憩中', value: statistics.rest, className: 'bg-yellow-50 text-yellow-800' },
             { label: '完了', value: statistics.completed, className: 'bg-purple-50 text-purple-800' },
+            { label: '総利用者数', value: statistics.total, className: 'bg-blue-50 text-blue-800' },
           ].map((item) => (
             <div key={item.label} className={`rounded-2xl px-4 py-4 ${item.className}`}>
               <p className="text-sm">{item.label}</p>

@@ -1,11 +1,28 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import InstructorHeader from '../components/InstructorHeader';
 import HomeSupportUserAdditionModal from '../components/HomeSupportUserAdditionModal';
 import HomeSupportUserDetailModal from '../components/modals/HomeSupportUserDetailModal';
 import { useInstructorGuard } from '../utils/hooks/useAuthGuard';
-import { getSatelliteHomeSupportUsers, getSatelliteSupportPlanStatus } from '../utils/api';
+import { getSatelliteHomeSupportUsers, getSatelliteSupportPlanStatus, removeHomeSupportFlag } from '../utils/api';
 import { buildSupportPlanAlerts } from '../utils/dashboardWarnings';
+
+const normalizeTags = (value) => {
+  if (Array.isArray(value)) {
+    return value.filter((tag) => typeof tag === 'string' && tag.trim()).map((tag) => tag.trim());
+  }
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((tag) => typeof tag === 'string' && tag.trim()).map((tag) => tag.trim());
+      }
+    } catch (error) {
+      return [];
+    }
+  }
+  return [];
+};
 
 const planState = (plan) => {
   if (!plan || plan.status === 'no_record') {
@@ -31,7 +48,7 @@ const planState = (plan) => {
     return {
       needsCheck: true,
       label: '更新時期',
-      detail: `目標達成予定日 ${goalLabel}（残り${updateAlert.daysUntilGoal}日）`,
+      detail: `目標達成予定日 ${goalLabel}`,
       className: 'bg-amber-100 text-amber-800',
     };
   }
@@ -45,6 +62,7 @@ const planState = (plan) => {
 };
 
 const HomeSupportUsersInfoPage = () => {
+  const navigate = useNavigate();
   const { currentUser } = useInstructorGuard();
   const [localUser, setLocalUser] = useState(null);
   const [satelliteId, setSatelliteId] = useState(null);
@@ -52,6 +70,9 @@ const HomeSupportUsersInfoPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [needsCheckOnly, setNeedsCheckOnly] = useState(false);
+  const [includeStopped, setIncludeStopped] = useState(false);
+  const [tagQuery, setTagQuery] = useState('');
+  const [removingId, setRemovingId] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
 
@@ -86,7 +107,7 @@ const HomeSupportUsersInfoPage = () => {
     setSatelliteId(locationToUse?.id || currentUser.satellite_id || null);
   }, [currentUser]);
 
-  const loadRows = async (nextSatelliteId) => {
+  const loadRows = async (nextSatelliteId, withStopped = includeStopped) => {
     if (!nextSatelliteId) {
       setRows([]);
       setLoading(false);
@@ -96,7 +117,7 @@ const HomeSupportUsersInfoPage = () => {
     setError(null);
     try {
       const [usersResponse, plansResponse] = await Promise.all([
-        getSatelliteHomeSupportUsers(nextSatelliteId),
+        getSatelliteHomeSupportUsers(nextSatelliteId, null, { includeInactive: withStopped }),
         getSatelliteSupportPlanStatus(nextSatelliteId),
       ]);
       if (!usersResponse?.success) {
@@ -116,6 +137,7 @@ const HomeSupportUsersInfoPage = () => {
           name: user.name,
           instructorName: user.instructor_name || '未設定',
           loginCode: user.login_code || '',
+          tags: normalizeTags(user.tags),
           plan,
           state: planState(plan),
         };
@@ -135,8 +157,30 @@ const HomeSupportUsersInfoPage = () => {
   };
 
   useEffect(() => {
-    loadRows(satelliteId);
-  }, [satelliteId]);
+    loadRows(satelliteId, includeStopped);
+  }, [satelliteId, includeStopped]);
+
+  const handleRemove = async (row) => {
+    if (!window.confirm(`${row.name}さんの在宅支援を解除しますか？`)) {
+      return;
+    }
+    setRemovingId(row.id);
+    try {
+      const response = await removeHomeSupportFlag(row.id);
+      if (!response?.success) {
+        throw new Error(response?.message || '在宅支援解除に失敗しました');
+      }
+      if (selectedStudent?.id === row.id) {
+        setSelectedStudent(null);
+      }
+      await loadRows(satelliteId, includeStopped);
+    } catch (removeError) {
+      console.error('在宅支援解除エラー:', removeError);
+      window.alert(removeError.message || '在宅支援解除に失敗しました');
+    } finally {
+      setRemovingId(null);
+    }
+  };
 
   const handleLocationChange = (newLocation) => {
     sessionStorage.setItem('selectedSatellite', JSON.stringify(newLocation));
@@ -156,10 +200,14 @@ const HomeSupportUsersInfoPage = () => {
     }));
   };
 
-  const visibleRows = useMemo(
-    () => (needsCheckOnly ? rows.filter((row) => row.state.needsCheck) : rows),
-    [needsCheckOnly, rows]
-  );
+  const visibleRows = useMemo(() => {
+    const query = tagQuery.trim();
+    return rows.filter((row) => {
+      if (needsCheckOnly && !row.state.needsCheck) return false;
+      if (query && !row.tags.some((tag) => tag.includes(query))) return false;
+      return true;
+    });
+  }, [needsCheckOnly, rows, tagQuery]);
   const needsCheckCount = rows.filter((row) => row.state.needsCheck).length;
 
   if (!currentUser || !localUser) {
@@ -178,7 +226,7 @@ const HomeSupportUsersInfoPage = () => {
           <div>
             <p className="text-sm font-medium text-emerald-700">在宅</p>
             <h1 className="mt-1 text-3xl font-bold text-gray-900">在宅利用者情報</h1>
-            <p className="mt-2 text-gray-600">在宅利用者の追加と、個別支援計画の確認をします。</p>
+            <p className="mt-2 text-gray-600">在宅利用者の追加、タグの確認、個別支援計画の確認をします。</p>
           </div>
           <div className="flex flex-col items-start gap-2 sm:items-end">
             <Link
@@ -204,13 +252,31 @@ const HomeSupportUsersInfoPage = () => {
           <span className={`rounded-full px-3 py-1 text-sm shadow-sm ${needsCheckCount > 0 ? 'bg-amber-100 text-amber-800' : 'bg-white text-gray-700'}`}>
             計画の確認が必要 {needsCheckCount}名
           </span>
-          <label className="ml-auto flex items-center gap-2 text-sm text-gray-700">
+          <label className="flex items-center gap-2 text-sm text-gray-700">
             <input
               type="checkbox"
               checked={needsCheckOnly}
               onChange={(event) => setNeedsCheckOnly(event.target.checked)}
             />
             確認が必要な人だけ表示
+          </label>
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={includeStopped}
+              onChange={(event) => setIncludeStopped(event.target.checked)}
+            />
+            停止中もふくめて表示
+          </label>
+          <label className="ml-auto flex items-center gap-2 text-sm text-gray-700">
+            タグ検索
+            <input
+              type="text"
+              value={tagQuery}
+              onChange={(event) => setTagQuery(event.target.value)}
+              placeholder="タグ名"
+              className="w-40 rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
+            />
           </label>
         </div>
 
@@ -225,7 +291,11 @@ const HomeSupportUsersInfoPage = () => {
             <div className="flex items-center justify-center py-16 text-gray-600">読み込み中...</div>
           ) : visibleRows.length === 0 ? (
             <div className="px-6 py-16 text-center text-gray-500">
-              {rows.length === 0 ? '在宅利用者はまだいません。' : '確認が必要な利用者はいません。'}
+              {rows.length === 0
+                ? '在宅利用者はまだいません。'
+                : tagQuery.trim()
+                  ? '該当するタグの利用者はいません。'
+                  : '確認が必要な利用者はいません。'}
             </div>
           ) : (
             <table className="min-w-full divide-y divide-gray-200">
@@ -240,7 +310,18 @@ const HomeSupportUsersInfoPage = () => {
               <tbody className="divide-y divide-gray-200">
                 {visibleRows.map((row) => (
                   <tr key={row.id}>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">{row.name}</td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm font-medium text-gray-900">{row.name}</div>
+                      {row.tags.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {row.tags.map((tag) => (
+                            <span key={tag} className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </td>
                     <td className="px-6 py-4 text-sm text-gray-600">{row.instructorName}</td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${row.state.className}`}>
@@ -249,18 +330,37 @@ const HomeSupportUsersInfoPage = () => {
                       <p className="mt-1 text-sm text-gray-600">{row.state.detail}</p>
                     </td>
                     <td className="px-6 py-4">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedStudent({
-                          id: row.id,
-                          name: row.name,
-                          instructorName: row.instructorName,
-                          email: row.loginCode,
-                        })}
-                        className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-                      >
-                        計画を確認
-                      </button>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/instructor/home-support/achievements/${row.id}`, {
+                            state: { userName: row.name },
+                          })}
+                          className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+                        >
+                          実績確認
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedStudent({
+                            id: row.id,
+                            name: row.name,
+                            instructorName: row.instructorName,
+                            email: row.loginCode,
+                          })}
+                          className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+                        >
+                          個別支援計画
+                        </button>
+                        <button
+                          type="button"
+                          disabled={removingId === row.id}
+                          onClick={() => handleRemove(row)}
+                          className="rounded-lg bg-red-100 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-200 disabled:opacity-60"
+                        >
+                          {removingId === row.id ? '解除中...' : '解除'}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -275,7 +375,7 @@ const HomeSupportUsersInfoPage = () => {
         onClose={() => setShowAddModal(false)}
         onSuccess={() => {
           setShowAddModal(false);
-          loadRows(satelliteId);
+          loadRows(satelliteId, includeStopped);
         }}
       />
       {selectedStudent && (
@@ -283,7 +383,7 @@ const HomeSupportUsersInfoPage = () => {
           isOpen={Boolean(selectedStudent)}
           student={selectedStudent}
           onClose={() => setSelectedStudent(null)}
-          onSave={() => loadRows(satelliteId)}
+          onSave={() => loadRows(satelliteId, includeStopped)}
         />
       )}
     </div>

@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useInstructorGuard } from '../utils/hooks/useAuthGuard';
 import InstructorHeader from '../components/InstructorHeader';
+import InstructorPasswordChangeModal from '../components/InstructorPasswordChangeModal';
+import { API_BASE_URL } from '../config/apiConfig';
 import { emptyDashboardWarnings, loadDashboardWarnings } from '../utils/dashboardWarnings';
 
 const dashboardGroups = [
@@ -29,13 +31,19 @@ const dashboardGroups = [
         id: 'voice',
         icon: '💬',
         title: '声かけ',
-        description: '利用者へのメッセージと声かけを扱います。',
+        description: '複数人へのアナウンスと、1人との会話を送ります。',
       },
       {
         id: 'courses',
         icon: '📚',
         title: '学習コース確認',
         description: '拠点で使える学習コースとレッスンを、利用者の画面で確認します。',
+      },
+      {
+        id: 'job-connect',
+        icon: '🎯',
+        title: 'おしごとコネクト',
+        description: 'ポートフォリオや就労準備を支え、社会との接点を広げます。',
       },
     ],
   },
@@ -74,8 +82,8 @@ const dashboardGroups = [
       {
         id: 'home-photos',
         icon: '📷',
-        title: '写真履歴',
-        description: '在宅の記録写真を確認します。',
+        title: '写真・記録',
+        description: '同意をいただいた撮影画像を、作業確認と証拠として見ます。',
       },
       {
         id: 'home-attendance',
@@ -182,6 +190,7 @@ const TmpDashboard = () => {
   const { currentUser } = useInstructorGuard();
   const [localUser, setLocalUser] = useState(null);
   const [warnings, setWarnings] = useState(emptyDashboardWarnings);
+  const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -233,6 +242,32 @@ const TmpDashboard = () => {
     };
   }, [localUser?.satellite_id]);
 
+  useEffect(() => {
+    if (localUser?.passwordResetRequired) {
+      setShowPasswordChangeModal(true);
+    }
+  }, [localUser?.passwordResetRequired]);
+
+  const handlePasswordChange = async (currentPassword, newPassword) => {
+    const token = localStorage.getItem('accessToken');
+    const response = await fetch(`${API_BASE_URL}/api/users/${localUser.id}/change-password`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.message || 'パスワード変更に失敗しました');
+    }
+    alert('パスワードが正常に変更されました。');
+    const updatedUser = { ...localUser, passwordResetRequired: false };
+    setLocalUser(updatedUser);
+    localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+  };
+
   const handleLocationChange = (newLocation) => {
     sessionStorage.setItem('selectedSatellite', JSON.stringify(newLocation));
     const updatedUser = {
@@ -273,19 +308,53 @@ const TmpDashboard = () => {
 
   const handleCardAction = (actionId) => {
     if (actionId === 'temp-password') {
-      openDashboardTab('students', 'issue-temp-password');
+      if (localUser?.satellite_id) {
+        sessionStorage.setItem('selectedSatellite', JSON.stringify({
+          id: localUser.satellite_id,
+          name: localUser.satellite_name,
+          company_id: localUser.company_id,
+          company_name: localUser.company_name,
+          type: localUser.location?.type || '就労移行支援事業所',
+          organization: localUser.location?.organization || 'スタディスフィア株式会社',
+        }));
+      }
+      navigate('/instructor/temp-password');
       return;
     }
     if (actionId === 'students') {
-      openDashboardTab('students');
+      if (localUser?.satellite_id) {
+        sessionStorage.setItem('selectedSatellite', JSON.stringify({
+          id: localUser.satellite_id,
+          name: localUser.satellite_name,
+          company_id: localUser.company_id,
+          company_name: localUser.company_name,
+          type: localUser.location?.type || '就労移行支援事業所',
+          organization: localUser.location?.organization || 'スタディスフィア株式会社',
+        }));
+      }
+      navigate('/instructor/students');
       return;
     }
     if (actionId === 'voice') {
-      openDashboardTab('overview');
+      if (localUser?.satellite_id) {
+        sessionStorage.setItem('selectedSatellite', JSON.stringify({
+          id: localUser.satellite_id,
+          name: localUser.satellite_name,
+          company_id: localUser.company_id,
+          company_name: localUser.company_name,
+          type: localUser.location?.type || '就労移行支援事業所',
+          organization: localUser.location?.organization || 'スタディスフィア株式会社',
+        }));
+      }
+      navigate('/instructor/voice');
       return;
     }
     if (actionId === 'courses') {
       openDashboardTab('learning-preview');
+      return;
+    }
+    if (actionId === 'job-connect') {
+      window.open('https://jobconnect.ayatori-inc.co.jp/', '_blank', 'noopener,noreferrer');
       return;
     }
     if (actionId === 'home-today') {
@@ -345,11 +414,31 @@ const TmpDashboard = () => {
       return;
     }
     if (actionId === 'home-photos') {
-      openHomeSupport('evidence');
+      if (localUser?.satellite_id) {
+        sessionStorage.setItem('selectedSatellite', JSON.stringify({
+          id: localUser.satellite_id,
+          name: localUser.satellite_name,
+          company_id: localUser.company_id,
+          company_name: localUser.company_name,
+          type: localUser.location?.type || '就労移行支援事業所',
+          organization: localUser.location?.organization || 'スタディスフィア株式会社',
+        }));
+      }
+      navigate('/instructor/home-support/photos');
       return;
     }
     if (actionId === 'home-attendance') {
-      openHomeSupport('attendance');
+      if (localUser?.satellite_id) {
+        sessionStorage.setItem('selectedSatellite', JSON.stringify({
+          id: localUser.satellite_id,
+          name: localUser.satellite_name,
+          company_id: localUser.company_id,
+          company_name: localUser.company_name,
+          type: localUser.location?.type || '就労移行支援事業所',
+          organization: localUser.location?.organization || 'スタディスフィア株式会社',
+        }));
+      }
+      navigate('/instructor/home-support/attendance');
       return;
     }
     if (actionId === 'home-support') {
@@ -357,11 +446,31 @@ const TmpDashboard = () => {
       return;
     }
     if (actionId === 'location') {
-      openDashboardTab('location');
+      if (localUser?.satellite_id) {
+        sessionStorage.setItem('selectedSatellite', JSON.stringify({
+          id: localUser.satellite_id,
+          name: localUser.satellite_name,
+          company_id: localUser.company_id,
+          company_name: localUser.company_name,
+          type: localUser.location?.type || '就労移行支援事業所',
+          organization: localUser.location?.organization || 'スタディスフィア株式会社',
+        }));
+      }
+      navigate('/instructor/location');
       return;
     }
     if (actionId === 'settings') {
-      openDashboardTab('settings');
+      if (localUser?.satellite_id) {
+        sessionStorage.setItem('selectedSatellite', JSON.stringify({
+          id: localUser.satellite_id,
+          name: localUser.satellite_name,
+          company_id: localUser.company_id,
+          company_name: localUser.company_name,
+          type: localUser.location?.type || '就労移行支援事業所',
+          organization: localUser.location?.organization || 'スタディスフィア株式会社',
+        }));
+      }
+      navigate('/instructor/settings');
     }
   };
 
@@ -381,6 +490,7 @@ const TmpDashboard = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <div className={showPasswordChangeModal ? 'pointer-events-none opacity-50' : ''}>
       <InstructorHeader
         user={localUser}
         onLocationChange={handleLocationChange}
@@ -443,6 +553,13 @@ const TmpDashboard = () => {
           </div>
         </div>
       </main>
+      </div>
+      <InstructorPasswordChangeModal
+        isOpen={showPasswordChangeModal}
+        onClose={() => setShowPasswordChangeModal(false)}
+        onPasswordChange={handlePasswordChange}
+        user={localUser}
+      />
     </div>
   );
 };

@@ -709,9 +709,16 @@ export const getSatelliteUsersForHomeSupport = (satelliteId, instructorIds = nul
 /**
  * 拠点内の在宅支援利用者一覧を取得
  */
-export const getSatelliteHomeSupportUsers = (satelliteId, instructorIds = null) => {
-  const params = instructorIds ? `?instructorIds=${instructorIds.join(',')}` : '';
-  return apiGet(`/api/users/satellite/${satelliteId}/home-support-users-list${params}`);
+export const getSatelliteHomeSupportUsers = (satelliteId, instructorIds = null, options = {}) => {
+  const params = new URLSearchParams();
+  if (instructorIds) {
+    params.append('instructorIds', instructorIds.join(','));
+  }
+  if (options.includeInactive) {
+    params.append('includeInactive', '1');
+  }
+  const query = params.toString();
+  return apiGet(`/api/users/satellite/${satelliteId}/home-support-users-list${query ? `?${query}` : ''}`);
 };
 
 /**
@@ -785,7 +792,7 @@ export const getMonthlyAttendance = (userId, year, month) => {
 /**
  * 記録・証拠データを取得
  */
-export const getCaptureRecords = (userId = null, startDate = null, endDate = null, satelliteId = null, page = 1, limit = 20) => {
+export const getCaptureRecords = (userId = null, startDate = null, endDate = null, satelliteId = null, page = 1, limit = 20, summary = false) => {
   const params = new URLSearchParams();
   if (userId) {
     params.append('userId', userId);
@@ -798,6 +805,9 @@ export const getCaptureRecords = (userId = null, startDate = null, endDate = nul
   }
   if (satelliteId) {
     params.append('satelliteId', satelliteId);
+  }
+  if (summary) {
+    params.append('summary', '1');
   }
   params.append('page', page);
   params.append('limit', limit);

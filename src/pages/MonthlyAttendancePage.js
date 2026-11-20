@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import InstructorHeader from '../components/InstructorHeader';
 import { useInstructorGuard } from '../utils/hooks/useAuthGuard';
 import { getSatelliteHomeSupportUsers, getMonthlyAttendance } from '../utils/api';
@@ -7,7 +6,6 @@ import { getCurrentUser } from '../utils/userContext';
 import { formatStoredMarkTime } from '../utils/dateUtils';
 
 function MonthlyAttendancePage() {
-  const navigate = useNavigate();
   const { currentUser, logout } = useInstructorGuard();
   const [localUser, setLocalUser] = useState(currentUser);
   
@@ -208,24 +206,9 @@ function MonthlyAttendancePage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-      <InstructorHeader 
-        user={localUser || currentUser} 
+      <InstructorHeader
+        user={localUser || currentUser}
         onLocationChange={handleLocationChange}
-        showBackButton={true}
-        backButtonText="在宅支援ダッシュボードに戻る"
-        onBackClick={() => {
-          // 戻る前に現在の拠点情報を保存
-          if (localUser) {
-            const currentLocation = {
-              id: localUser.satellite_id,
-              name: localUser.satellite_name,
-              company_id: localUser.company_id,
-              company_name: localUser.company_name
-            };
-            sessionStorage.setItem('selectedSatellite', JSON.stringify(currentLocation));
-          }
-          navigate('/instructor/home-support');
-        }}
       />
       
       <div className="container mx-auto px-4 py-8">

@@ -5,7 +5,7 @@ import { getCurrentUser } from '../../utils/userContext';
 import { formatStoredMarkTime } from '../../utils/dateUtils';
 import AttendanceEditModal from '../modals/AttendanceEditModal';
 
-const AttendanceTab = () => {
+const AttendanceTab = ({ showHeading = true }) => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [attendanceData, setAttendanceData] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -141,20 +141,22 @@ const AttendanceTab = () => {
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">⏰ 在宅勤怠管理(日時)</h2>
-            <p className="text-lg text-gray-600">在宅支援利用者の勤怠状況を管理できます</p>
+        {showHeading && (
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">⏰ 在宅勤怠管理(日時)</h2>
+              <p className="text-lg text-gray-600">在宅支援利用者の勤怠状況を管理できます</p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => navigateWithLocation('/instructor/home-support/monthly-attendance')}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+              >
+                月次勤怠管理
+              </button>
+            </div>
           </div>
-          <div className="flex gap-3">
-            <button 
-              onClick={() => navigateWithLocation('/instructor/home-support/monthly-attendance')}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-            >
-              月次勤怠管理
-            </button>
-          </div>
-        </div>
+        )}
 
         {/* 日付選択 */}
         <div className="mb-6 flex items-center justify-center gap-3">

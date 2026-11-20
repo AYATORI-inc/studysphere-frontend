@@ -774,14 +774,17 @@ const UserInputModal = ({ isOpen, onClose, selectedUser, staffInput = false }) =
                       <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
                         <span>作業・訓練内容</span>
                         {isEditing && (
-                          <button
-                            type="button"
-                            onClick={handleAISuggest}
-                            disabled={aiSuggesting || !workNote}
-                            className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-all duration-200"
-                          >
-                            {aiSuggesting ? '🤖 生成中...' : '🤖 AI提案'}
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              onClick={handleAISuggest}
+                              disabled={aiSuggesting || !workNote}
+                              className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-all duration-200"
+                            >
+                              {aiSuggesting ? '🤖 生成中...' : '🤖 AI提案'}
+                            </button>
+                            <span className="text-xs font-normal text-gray-500">保存した内容から提案します。先に保存してください。</span>
+                          </>
                         )}
                       </label>
                       {isEditing ? (
