@@ -126,6 +126,29 @@ export const formatJapanDate = (date) => {
 };
 
 /**
+ * APIの日付を日本時間の YYYY-MM-DD にする。
+ * DATE 列は JSON 化すると UTC の前日になることがある。
+ */
+export const toJapanDateKey = (value) => {
+  if (value === null || value === undefined || value === '') return null;
+  const text = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  const parsed = new Date(text);
+  if (Number.isNaN(parsed.getTime())) return null;
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(parsed);
+  const year = parts.find((part) => part.type === 'year')?.value;
+  const month = parts.find((part) => part.type === 'month')?.value;
+  const day = parts.find((part) => part.type === 'day')?.value;
+  if (!year || !month || !day) return null;
+  return `${year}-${month}-${day}`;
+};
+
+/**
  * 時刻のみ文字列を取得（データベースの時間データをそのまま表示）
  * @param {Date|string} date - 日付
  * @returns {string} 時刻文字列（HH:MM:SS）
@@ -270,6 +293,29 @@ export const formatUTCToJSTTimeOnly = (utcISOString) => {
     return null;
   }
 };
+
+/**
+ * 打刻の瞬間を日本時間の HH:MM にする。
+ * 本番の Node と MySQL は UTC。DATETIME の 01:00:00 は 10:00（日本時間）である。
+ */
+export const formatJapanTimeOfInstant = (value) => {
+  if (!value) return null;
+  if (typeof value === 'string' && /^\d{2}:\d{2}$/.test(value)) return value;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Tokyo',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(parsed);
+  const hour = parts.find((part) => part.type === 'hour')?.value;
+  const minute = parts.find((part) => part.type === 'minute')?.value;
+  if (!hour || !minute) return null;
+  return `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`;
+};
+
+export const formatStoredMarkTime = (value) => formatJapanTimeOfInstant(value);
 
 /**
  * JST時刻（HH:MM形式）と日付を組み合わせてUTC時刻のISO文字列に変換

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getDailyAttendance } from '../../utils/api';
 import { getCurrentUser } from '../../utils/userContext';
-import { formatUTCToJSTTimeOnly } from '../../utils/dateUtils';
+import { formatStoredMarkTime } from '../../utils/dateUtils';
 import AttendanceEditModal from '../modals/AttendanceEditModal';
 
 const AttendanceTab = () => {
@@ -90,10 +90,10 @@ const AttendanceTab = () => {
           
           return {
             ...record,
-            startTime: record.startTimeUTC ? formatUTCToJSTTimeOnly(record.startTimeUTC) : null,
-            endTime: record.endTimeUTC ? formatUTCToJSTTimeOnly(record.endTimeUTC) : null,
-            breakStartTime: record.breakStartTimeUTC ? formatUTCToJSTTimeOnly(record.breakStartTimeUTC) : null,
-            breakEndTime: record.breakEndTimeUTC ? formatUTCToJSTTimeOnly(record.breakEndTimeUTC) : null,
+            startTime: record.startTimeUTC ? formatStoredMarkTime(record.startTimeUTC) : null,
+            endTime: record.endTimeUTC ? formatStoredMarkTime(record.endTimeUTC) : null,
+            breakStartTime: record.breakStartTimeUTC ? formatStoredMarkTime(record.breakStartTimeUTC) : null,
+            breakEndTime: record.breakEndTimeUTC ? formatStoredMarkTime(record.breakEndTimeUTC) : null,
             workingTimeDisplay: workingTimeDisplay
           };
         });

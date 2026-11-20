@@ -7,7 +7,6 @@ import { saveTempPasswordAuth } from '../utils/authUtils';
 import { API_BASE_URL } from '../config/apiConfig';
 import Dashboard from './Dashboard';
 import LessonList from './LessonList';
-import CareerAssessment from '../components/CareerAssessment';
 import ToyBox from '../components/ToyBox';
 import PersonalMessageList from '../components/PersonalMessageList';
 import AnnouncementList from '../components/AnnouncementList';
@@ -682,16 +681,14 @@ const StudentDashboard = () => {
             >
               📚 レッスン一覧
             </button>
-            <button 
-              className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
-                activeTab === 'career-assessment'
-                  ? 'bg-gradient-to-r from-blue-500 to-cyan-600 text-white shadow-lg'
-                  : 'text-gray-600 hover:bg-blue-50 hover:text-blue-700'
-              }`}
-              onClick={() => handleTabChange('career-assessment')}
+            <a
+              href="https://jobconnect.ayatori-inc.co.jp/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-4 py-2 rounded-lg font-medium text-gray-600 hover:bg-blue-50 hover:text-blue-700 transition-all duration-200"
             >
-              🎯 適職診断
-            </button>
+              🎯 おしごとコネクト
+            </a>
             <button 
               className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 ${
                 activeTab === 'toybox'
@@ -775,12 +772,6 @@ const StudentDashboard = () => {
           {activeTab === 'lessons' && (
             <div className="bg-white rounded-2xl shadow-xl p-8">
               <LessonList selectedCourseId={selectedCourseId} />
-            </div>
-          )}
-          
-          {activeTab === 'career-assessment' && (
-            <div className="bg-white rounded-2xl shadow-xl p-8">
-              <CareerAssessment />
             </div>
           )}
           

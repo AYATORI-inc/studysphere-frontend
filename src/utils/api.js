@@ -717,13 +717,22 @@ export const getSatelliteHomeSupportUsers = (satelliteId, instructorIds = null) 
 /**
  * 拠点内の在宅支援利用者一覧を取得（日次記録情報を含む）
  */
-export const getSatelliteHomeSupportUsersWithDailyRecords = (satelliteId, instructorIds = null, date = null) => {
+export const getSatelliteHomeSupportUsersWithDailyRecords = (satelliteId, instructorIds = null, date = null, range = null) => {
   const params = new URLSearchParams();
   if (instructorIds) {
     params.append('instructorIds', instructorIds.join(','));
   }
   if (date) {
     params.append('date', date);
+  }
+  if (range?.startDate) {
+    params.append('startDate', range.startDate);
+  }
+  if (range?.endDate) {
+    params.append('endDate', range.endDate);
+  }
+  if (range?.userId) {
+    params.append('userId', range.userId);
   }
   const queryString = params.toString();
   return apiGet(`/api/users/satellite/${satelliteId}/home-support-users-with-records${queryString ? `?${queryString}` : ''}`);
@@ -756,6 +765,14 @@ export const getDailyAttendance = (satelliteId, date) => {
  */
 export const updateDailyAttendance = (recordId, data) => {
   return apiPut(`/api/remote-support/daily-attendance/${recordId}`, data);
+};
+
+export const createHomeSupportDailyRecord = (userId, date) => {
+  return apiPost('/api/remote-support/daily-records', { userId, date });
+};
+
+export const deleteHomeSupportDailyRecord = (recordId) => {
+  return apiDelete(`/api/remote-support/daily-reports/${recordId}`);
 };
 
 /**

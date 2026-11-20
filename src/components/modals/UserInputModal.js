@@ -3,6 +3,7 @@ import { getUserHealthData, getUserWorkPlan, addInstructorComment, updateUserDai
 import { getSatelliteInstructors } from '../../utils/api';
 import { getCurrentUser } from '../../utils/userContext';
 import { API_BASE_URL } from '../../config/apiConfig';
+import { formatJapanTimeOfInstant } from '../../utils/dateUtils';
 
 const DATETIME_LOCAL_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 const MYSQL_DATETIME_REGEX = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
@@ -37,16 +38,23 @@ const parseDateValue = (value) => {
   return isNaN(parsed.getTime()) ? null : parsed;
 };
 
-const formatDateTimeForInput = (value) => {
+const TIME_ONLY_REGEX = /^\d{2}:\d{2}$/;
+
+const markTimeForInput = (value) => {
   if (!value) return '';
-  if (DATETIME_LOCAL_REGEX.test(value)) return value;
+  if (TIME_ONLY_REGEX.test(value)) return value;
+  return formatJapanTimeOfInstant(value) || '';
+};
 
-  const parsed = parseDateValue(value);
-  if (!parsed) return '';
-
-  const offsetMinutes = parsed.getTimezoneOffset();
-  const localDate = new Date(parsed.getTime() - offsetMinutes * 60000);
-  return localDate.toISOString().slice(0, 16);
+const markTimeForPayload = (timeValue, dateValue) => {
+  if (timeValue === undefined) return undefined;
+  if (timeValue === null || timeValue === '') return null;
+  if (TIME_ONLY_REGEX.test(timeValue)) {
+    if (!dateValue || !/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) return null;
+    const parsed = parseDateValue(`${dateValue}T${timeValue}`);
+    return parsed ? formatDateToMySQLUTC(parsed) : null;
+  }
+  return normalizeDateTimeForPayload(timeValue);
 };
 
 const normalizeDateTimeForPayload = (value) => {
@@ -66,7 +74,7 @@ const normalizeDateTimeForPayload = (value) => {
   return parsed ? formatDateToMySQLUTC(parsed) : null;
 };
 
-const UserInputModal = ({ isOpen, onClose, selectedUser }) => {
+const UserInputModal = ({ isOpen, onClose, selectedUser, staffInput = false }) => {
   const [healthData, setHealthData] = useState(null);
   const [workPlan, setWorkPlan] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -153,21 +161,6 @@ const UserInputModal = ({ isOpen, onClose, selectedUser }) => {
       .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
   };
 
-  // 更新時間をHH:MM形式にフォーマットする関数
-  const formatTime = (dateString) => {
-    if (!dateString) return '未記録';
-    try {
-      const parsed = parseDateValue(dateString);
-      if (!parsed) return '未記録';
-      const hours = String(parsed.getHours()).padStart(2, '0');
-      const minutes = String(parsed.getMinutes()).padStart(2, '0');
-      return `${hours}:${minutes}`;
-    } catch (error) {
-      console.error('時間フォーマットエラー:', error);
-      return 'エラー';
-    }
-  };
-
   const formatCommentTimestamp = (value) => {
     if (!value) return '';
     const parsed = parseDateValue(value);
@@ -184,12 +177,18 @@ const UserInputModal = ({ isOpen, onClose, selectedUser }) => {
   };
 
   useEffect(() => {
-    if (isOpen && selectedUser) {
+    if (!isOpen) {
+      setIsEditing(false);
+      return;
+    }
+    if (selectedUser) {
       fetchUserData();
       fetchInstructors();
       fetchSupportPlan();
     }
   }, [isOpen, selectedUser]);
+
+  const reportId = healthData?.id || workPlan?.id || selectedUser?.dailyRecordId || null;
 
   const fetchSupportPlan = async () => {
     try {
@@ -269,10 +268,10 @@ const UserInputModal = ({ isOpen, onClose, selectedUser }) => {
             temperature: healthResult.data.temperature || '',
             condition: healthResult.data.condition || '普通',
             condition_note: healthResult.data.condition_note || '',
-            mark_start: healthResult.data.mark_start || '',
-            mark_end: healthResult.data.mark_end || '',
-            mark_lunch_start: healthResult.data.mark_lunch_start || '',
-            mark_lunch_end: healthResult.data.mark_lunch_end || '',
+            mark_start: markTimeForInput(healthResult.data.mark_start),
+            mark_end: markTimeForInput(healthResult.data.mark_end),
+            mark_lunch_start: markTimeForInput(healthResult.data.mark_lunch_start),
+            mark_lunch_end: markTimeForInput(healthResult.data.mark_lunch_end),
             sleep_hours: healthResult.data.sleep_hours || ''
           }));
         }
@@ -293,10 +292,10 @@ const UserInputModal = ({ isOpen, onClose, selectedUser }) => {
             daily_report: workResult.data.daily_report || '',
             recorder_name: workResult.data.recorder_name || '',
             // workPlanから昼休憩時間も取得
-            mark_start: workResult.data.mark_start || prev.mark_start || '',
-            mark_end: workResult.data.mark_end || prev.mark_end || '',
-            mark_lunch_start: workResult.data.mark_lunch_start || prev.mark_lunch_start || '',
-            mark_lunch_end: workResult.data.mark_lunch_end || prev.mark_lunch_end || '',
+            mark_start: markTimeForInput(workResult.data.mark_start) || prev.mark_start || '',
+            mark_end: markTimeForInput(workResult.data.mark_end) || prev.mark_end || '',
+            mark_lunch_start: markTimeForInput(workResult.data.mark_lunch_start) || prev.mark_lunch_start || '',
+            mark_lunch_end: markTimeForInput(workResult.data.mark_lunch_end) || prev.mark_lunch_end || '',
             sleep_hours: prev.sleep_hours || (healthResult.data ? healthResult.data.sleep_hours || '' : '')
           }));
           // work_noteを初期化（AI提案で使用）
@@ -312,6 +311,9 @@ const UserInputModal = ({ isOpen, onClose, selectedUser }) => {
         workResult.success ? workResult.data : null
       );
       setInstructorComments(comments);
+      if (staffInput) {
+        setIsEditing(true);
+      }
     } catch (error) {
       console.error('データ取得エラー:', error);
       setInstructorComments([]);
@@ -351,15 +353,6 @@ const UserInputModal = ({ isOpen, onClose, selectedUser }) => {
         return;
       }
 
-      // 体調データまたは作業予定データから日次記録IDを取得
-      let reportId = null;
-      
-      if (healthData && healthData.id) {
-        reportId = healthData.id;
-      } else if (workPlan && workPlan.id) {
-        reportId = workPlan.id;
-      }
-      
       if (!reportId) {
         alert('日次記録が見つかりません。データを再読み込みしてください。');
         return;
@@ -404,13 +397,6 @@ const UserInputModal = ({ isOpen, onClose, selectedUser }) => {
     );
     if (!confirmed) {
       return;
-    }
-
-    let reportId = null;
-    if (healthData && healthData.id) {
-      reportId = healthData.id;
-    } else if (workPlan && workPlan.id) {
-      reportId = workPlan.id;
     }
 
     if (!reportId) {
@@ -495,26 +481,18 @@ const UserInputModal = ({ isOpen, onClose, selectedUser }) => {
   const handleSave = async () => {
     setSaving(true);
     try {
-      // 日次記録IDを取得
-      let reportId = null;
-      
-      if (healthData && healthData.id) {
-        reportId = healthData.id;
-      } else if (workPlan && workPlan.id) {
-        reportId = workPlan.id;
-      }
-      
       if (!reportId) {
         alert('日次記録が見つかりません。データを再読み込みしてください。');
         return;
       }
       
+      const recordDate = /^\d{4}-\d{2}-\d{2}$/.test(selectedUser?.date || '') ? selectedUser.date : null;
       const payload = {
         ...editData,
-        mark_start: normalizeDateTimeForPayload(editData.mark_start),
-        mark_end: normalizeDateTimeForPayload(editData.mark_end),
-        mark_lunch_start: normalizeDateTimeForPayload(editData.mark_lunch_start),
-        mark_lunch_end: normalizeDateTimeForPayload(editData.mark_lunch_end)
+        mark_start: markTimeForPayload(editData.mark_start, recordDate),
+        mark_end: markTimeForPayload(editData.mark_end, recordDate),
+        mark_lunch_start: markTimeForPayload(editData.mark_lunch_start, recordDate),
+        mark_lunch_end: markTimeForPayload(editData.mark_lunch_end, recordDate)
       };
 
       console.log('在宅就労支援記録保存:', {
@@ -526,10 +504,7 @@ const UserInputModal = ({ isOpen, onClose, selectedUser }) => {
       const result = await updateUserDailyReport(reportId, payload);
       
       if (result.success) {
-        alert('在宅就労支援記録を保存しました');
-        setIsEditing(false);
-        // データを再読み込み
-        fetchUserData();
+        onClose();
       } else {
         alert(`保存に失敗しました: ${result.message}`);
       }
@@ -557,7 +532,7 @@ const UserInputModal = ({ isOpen, onClose, selectedUser }) => {
                 <p>記録日: <span className="font-semibold text-white">{selectedUser?.date ? new Date(selectedUser.date).toLocaleDateString('ja-JP') : new Date().toLocaleDateString('ja-JP')}</span></p>
               </div>
             </div>
-            {!isEditing && !loading && !error && (healthData || workPlan) && (
+            {!isEditing && !loading && !error && (healthData || workPlan || staffInput) && (
               <button
                 onClick={() => setIsEditing(true)}
                 className="px-4 py-2 bg-white text-indigo-600 rounded-lg font-medium hover:bg-indigo-50 transition-all duration-200"
@@ -596,21 +571,21 @@ const UserInputModal = ({ isOpen, onClose, selectedUser }) => {
                   <span>打刻時間</span>
                 </h3>
                 
-                {(healthData || workPlan) ? (
+                {(healthData || workPlan || staffInput) ? (
                   <>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                       <div className="bg-white rounded-lg p-4 border border-purple-100">
                         <label className="block text-sm font-medium text-gray-700 mb-2">実施時間 (開始)</label>
                         {isEditing ? (
                           <input
-                            type="datetime-local"
-                            value={formatDateTimeForInput(editData.mark_start)}
+                            type="time"
+                            value={editData.mark_start || ''}
                             onChange={(e) => setEditData(prev => ({ ...prev, mark_start: e.target.value }))}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                           />
                         ) : (
                           <div className="text-lg font-semibold text-purple-600">
-                            {(healthData?.mark_start || workPlan?.mark_start) ? formatTime(healthData?.mark_start || workPlan?.mark_start) : '未記録'}
+                            {markTimeForInput(healthData?.mark_start || workPlan?.mark_start) || '未記録'}
                           </div>
                         )}
                       </div>
@@ -619,14 +594,14 @@ const UserInputModal = ({ isOpen, onClose, selectedUser }) => {
                         <label className="block text-sm font-medium text-gray-700 mb-2">実施時間 (終了)</label>
                         {isEditing ? (
                           <input
-                            type="datetime-local"
-                            value={formatDateTimeForInput(editData.mark_end)}
+                            type="time"
+                            value={editData.mark_end || ''}
                             onChange={(e) => setEditData(prev => ({ ...prev, mark_end: e.target.value }))}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                           />
                         ) : (
                           <div className="text-lg font-semibold text-purple-600">
-                            {(healthData?.mark_end || workPlan?.mark_end) ? formatTime(healthData?.mark_end || workPlan?.mark_end) : '未記録'}
+                            {markTimeForInput(healthData?.mark_end || workPlan?.mark_end) || '未記録'}
                           </div>
                         )}
                       </div>
@@ -637,14 +612,14 @@ const UserInputModal = ({ isOpen, onClose, selectedUser }) => {
                         <label className="block text-sm font-medium text-gray-700 mb-2">昼休憩開始</label>
                         {isEditing ? (
                           <input
-                            type="datetime-local"
-                            value={formatDateTimeForInput(editData.mark_lunch_start)}
+                            type="time"
+                            value={editData.mark_lunch_start || ''}
                             onChange={(e) => setEditData(prev => ({ ...prev, mark_lunch_start: e.target.value }))}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                           />
                         ) : (
                           <div className="text-lg font-semibold text-purple-600">
-                            {(healthData?.mark_lunch_start || workPlan?.mark_lunch_start) ? formatTime(healthData?.mark_lunch_start || workPlan?.mark_lunch_start) : '未記録'}
+                            {markTimeForInput(healthData?.mark_lunch_start || workPlan?.mark_lunch_start) || '未記録'}
                           </div>
                         )}
                       </div>
@@ -653,14 +628,14 @@ const UserInputModal = ({ isOpen, onClose, selectedUser }) => {
                         <label className="block text-sm font-medium text-gray-700 mb-2">昼休憩終了</label>
                         {isEditing ? (
                           <input
-                            type="datetime-local"
-                            value={formatDateTimeForInput(editData.mark_lunch_end)}
+                            type="time"
+                            value={editData.mark_lunch_end || ''}
                             onChange={(e) => setEditData(prev => ({ ...prev, mark_lunch_end: e.target.value }))}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                           />
                         ) : (
                           <div className="text-lg font-semibold text-purple-600">
-                            {(healthData?.mark_lunch_end || workPlan?.mark_lunch_end) ? formatTime(healthData?.mark_lunch_end || workPlan?.mark_lunch_end) : '未記録'}
+                            {markTimeForInput(healthData?.mark_lunch_end || workPlan?.mark_lunch_end) || '未記録'}
                           </div>
                         )}
                       </div>
@@ -680,7 +655,7 @@ const UserInputModal = ({ isOpen, onClose, selectedUser }) => {
                   <span>体調管理</span>
                 </h3>
                 
-                {healthData ? (
+                {(healthData || staffInput) ? (
                   <>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                       <div className="bg-white rounded-lg p-4 border border-blue-100">
@@ -696,9 +671,9 @@ const UserInputModal = ({ isOpen, onClose, selectedUser }) => {
                         ) : (
                           <>
                             <div className="text-2xl font-bold text-blue-600">
-                              {healthData.temperature ? `${healthData.temperature}°C` : '未記録'}
+                              {healthData?.temperature ? `${healthData.temperature}°C` : '未記録'}
                             </div>
-                            <p className="text-xs text-gray-500 mt-1">記録時刻: {formatTime(healthData.mark_start)}</p>
+                            <p className="text-xs text-gray-500 mt-1">記録時刻: {markTimeForInput(healthData?.mark_start) || '未記録'}</p>
                           </>
                         )}
                       </div>
@@ -708,14 +683,14 @@ const UserInputModal = ({ isOpen, onClose, selectedUser }) => {
                         {isEditing ? (
                           <input
                             type="text"
-                            value={editData.sleep_hours || healthData.sleep_hours || ''}
+                            value={editData.sleep_hours || healthData?.sleep_hours || ''}
                             onChange={(e) => setEditData(prev => ({ ...prev, sleep_hours: e.target.value }))}
                             placeholder="例: 7時間30分"
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                           />
                         ) : (
                           <div className="text-2xl font-bold text-blue-600">
-                            {healthData.sleep_hours ? `${healthData.sleep_hours}` : '未記録'}
+                            {healthData?.sleep_hours ? `${healthData.sleep_hours}` : '未記録'}
                           </div>
                         )}
                       </div>
@@ -734,14 +709,14 @@ const UserInputModal = ({ isOpen, onClose, selectedUser }) => {
                           </select>
                         ) : (
                           <div className={`inline-flex px-3 py-1 rounded-full font-semibold ${
-                            healthData.condition === '良い' ? 'bg-green-100 text-green-800' :
-                            healthData.condition === '普通' ? 'bg-yellow-100 text-yellow-800' :
-                            healthData.condition === '悪い' ? 'bg-red-100 text-red-800' :
+                            healthData?.condition === '良い' ? 'bg-green-100 text-green-800' :
+                            healthData?.condition === '普通' ? 'bg-yellow-100 text-yellow-800' :
+                            healthData?.condition === '悪い' ? 'bg-red-100 text-red-800' :
                             'bg-gray-100 text-gray-800'
                           }`}>
-                            {healthData.condition === '良い' ? '😊 良い' : 
-                             healthData.condition === '普通' ? '😐 普通' : 
-                             healthData.condition === '悪い' ? '😷 悪い' : '❓ 未記録'}
+                            {healthData?.condition === '良い' ? '😊 良い' : 
+                             healthData?.condition === '普通' ? '😐 普通' : 
+                             healthData?.condition === '悪い' ? '😷 悪い' : '❓ 未記録'}
                           </div>
                         )}
                       </div>
@@ -758,7 +733,7 @@ const UserInputModal = ({ isOpen, onClose, selectedUser }) => {
                         />
                       ) : (
                         <p className="text-gray-800 whitespace-pre-wrap break-words">
-                          {healthData.condition_note || '体調の詳細が記録されていません。'}
+                          {healthData?.condition_note || '体調の詳細が記録されていません。'}
                         </p>
                       )}
                     </div>
@@ -777,7 +752,7 @@ const UserInputModal = ({ isOpen, onClose, selectedUser }) => {
                   <span>作業内容</span>
                 </h3>
                 
-                {workPlan ? (
+                {(workPlan || staffInput) ? (
                   <div className="space-y-4">
                     <div className="bg-white rounded-lg p-4 border border-green-100">
                       <label className="block text-sm font-medium text-gray-700 mb-2">作業予定</label>
@@ -790,7 +765,7 @@ const UserInputModal = ({ isOpen, onClose, selectedUser }) => {
                         />
                       ) : (
                         <p className="text-gray-800 whitespace-pre-wrap">
-                          {workPlan.work_note || '作業予定が記録されていません。'}
+                          {workPlan?.work_note || '作業予定が記録されていません。'}
                         </p>
                       )}
                     </div>
@@ -818,7 +793,7 @@ const UserInputModal = ({ isOpen, onClose, selectedUser }) => {
                         />
                       ) : (
                         <p className="text-gray-800 whitespace-pre-wrap">
-                          {workPlan.work_result || '作業・訓練内容が記録されていません。'}
+                          {workPlan?.work_result || '作業・訓練内容が記録されていません。'}
                         </p>
                       )}
                     </div>
@@ -833,7 +808,7 @@ const UserInputModal = ({ isOpen, onClose, selectedUser }) => {
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 h-32 resize-none"
                         />
                       ) : (
-                        <p className="text-gray-800 whitespace-pre-wrap">{workPlan.daily_report || '日報が記録されていません。'}</p>
+                        <p className="text-gray-800 whitespace-pre-wrap">{workPlan?.daily_report || '日報が記録されていません。'}</p>
                       )}
                     </div>
                   </div>
@@ -851,6 +826,9 @@ const UserInputModal = ({ isOpen, onClose, selectedUser }) => {
                   <span>💬</span>
                   <span>指導員コメント</span>
                 </h3>
+                {isEditing && !staffInput && (
+                  <p className="mb-4 text-sm text-gray-600">コメントの追加は、閲覧画面の「コメントを追加」から行います。</p>
+                )}
                 
                 <div className="space-y-6">
                   <div>
@@ -873,18 +851,20 @@ const UserInputModal = ({ isOpen, onClose, selectedUser }) => {
                                 <div className="text-xs text-gray-500">
                                   {formatCommentTimestamp(commentItem.created_at)}
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteComment(commentItem)}
-                                  disabled={isDeleting}
-                                  className={`px-2 py-1 text-xs border rounded transition-colors duration-200 ${
-                                    isDeleting
-                                      ? 'bg-red-100 text-red-400 border-red-200 cursor-not-allowed'
-                                      : 'text-red-600 border-red-200 hover:bg-red-50'
-                                  }`}
-                                >
-                                  {isDeleting ? '削除中...' : '削除'}
-                                </button>
+                                {(!isEditing || staffInput) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteComment(commentItem)}
+                                    disabled={isDeleting}
+                                    className={`px-2 py-1 text-xs border rounded transition-colors duration-200 ${
+                                      isDeleting
+                                        ? 'bg-red-100 text-red-400 border-red-200 cursor-not-allowed'
+                                        : 'text-red-600 border-red-200 hover:bg-red-50'
+                                    }`}
+                                  >
+                                    {isDeleting ? '削除中...' : '削除'}
+                                  </button>
+                                )}
                               </div>
                             </div>
                             <p className="mt-3 text-gray-700 whitespace-pre-wrap text-sm">
@@ -901,23 +881,27 @@ const UserInputModal = ({ isOpen, onClose, selectedUser }) => {
                     )}
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">コメントを追加</label>
-                    <textarea
-                      value={comment}
-                      onChange={(e) => setComment(e.target.value)}
-                      placeholder="利用者へのコメントを入力してください..."
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-24 resize-none"
-                    />
-                  </div>
+                  {(!isEditing || staffInput) && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">コメントを追加</label>
+                        <textarea
+                          value={comment}
+                          onChange={(e) => setComment(e.target.value)}
+                          placeholder="利用者へのコメントを入力してください..."
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-24 resize-none"
+                        />
+                      </div>
 
-                  <button
-                    onClick={handleAddComment}
-                    disabled={submittingComment || !comment.trim()}
-                    className="px-6 py-2 bg-indigo-500 text-white rounded-lg font-medium hover:bg-indigo-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200"
-                  >
-                    {submittingComment ? '追加中...' : '💬 コメントを追加'}
-                  </button>
+                      <button
+                        onClick={handleAddComment}
+                        disabled={submittingComment || !comment.trim()}
+                        className="px-6 py-2 bg-indigo-500 text-white rounded-lg font-medium hover:bg-indigo-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200"
+                      >
+                        {submittingComment ? '追加中...' : '💬 コメントを追加'}
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -930,11 +914,7 @@ const UserInputModal = ({ isOpen, onClose, selectedUser }) => {
             {isEditing ? (
               <>
                 <button
-                  onClick={() => {
-                    setIsEditing(false);
-                    // 編集データをリセット
-                    fetchUserData();
-                  }}
+                  onClick={onClose}
                   disabled={saving}
                   className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 disabled:bg-gray-100 disabled:cursor-not-allowed transition-all duration-200"
                 >

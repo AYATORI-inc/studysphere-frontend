@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useInstructorGuard } from '../utils/hooks/useAuthGuard';
 import InstructorHeader from '../components/InstructorHeader';
+import { emptyDashboardWarnings, loadDashboardWarnings } from '../utils/dashboardWarnings';
 
 const dashboardGroups = [
   {
@@ -44,19 +45,49 @@ const dashboardGroups = [
     panelClass: 'border-emerald-100 bg-emerald-50',
     titleClass: 'text-emerald-800',
     accent: 'from-emerald-500 to-emerald-600',
-    layoutClass: 'sm:grid-cols-2',
+    layoutClass: 'sm:grid-cols-2 xl:grid-cols-4',
     cards: [
       {
         id: 'home-today',
-        icon: '📷',
+        icon: '📊',
         title: '今日の在宅状況',
-        description: '在宅支援の記録と証拠を確認します。',
+        description: '今日の在宅利用者の稼働状態を確認します。',
+      },
+      {
+        id: 'home-history',
+        icon: '📅',
+        title: '利用履歴',
+        description: '日付を選んで、その日の在宅利用を確認します。',
+      },
+      {
+        id: 'home-evaluations',
+        icon: '📋',
+        title: '評価記録',
+        description: '利用者別の日次、週次、月次の評価状況を確認します。',
+      },
+      {
+        id: 'home-users',
+        icon: '👤',
+        title: '在宅利用者情報',
+        description: '在宅利用者の追加と、個別支援計画の確認をします。',
+      },
+      {
+        id: 'home-photos',
+        icon: '📷',
+        title: '写真履歴',
+        description: '在宅の記録写真を確認します。',
+      },
+      {
+        id: 'home-attendance',
+        icon: '⏰',
+        title: '勤怠管理',
+        description: '在宅利用者の勤怠を確認します。',
       },
       {
         id: 'home-support',
         icon: '🏠',
-        title: '在宅支援管理',
-        description: '在宅の支援記録、評価、勤怠を扱います。',
+        title: '旧ダッシュボード',
+        description: '在宅管理のこれまでの画面を開きます。',
       },
     ],
   },
@@ -66,7 +97,7 @@ const dashboardGroups = [
     panelClass: 'border-slate-200 bg-slate-100',
     titleClass: 'text-slate-700',
     accent: 'from-slate-500 to-slate-600',
-    layoutClass: 'sm:grid-cols-2',
+    layoutClass: 'sm:grid-cols-2 xl:grid-cols-4',
     cards: [
       {
         id: 'location',
@@ -84,8 +115,32 @@ const dashboardGroups = [
   },
 ];
 
-const DashboardCard = ({ action, accent, passwordResetRequired, onSelect }) => {
+const warningLinesForCard = (cardId, warnings) => {
+  if (cardId === 'students') {
+    return [
+      warnings.approvals > 0 ? `合格未承認 ${warnings.approvals}件` : null,
+      warnings.submissions > 0 ? `提出物未承認 ${warnings.submissions}件` : null,
+    ].filter(Boolean);
+  }
+  if (cardId === 'voice') {
+    return warnings.unreadMessages > 0 ? [`未読 ${warnings.unreadMessages}件`] : [];
+  }
+  if (cardId === 'home-evaluations') {
+    return [
+      warnings.dailyRecord > 0 ? `日次記録が未記載 ${warnings.dailyRecord}件` : null,
+      warnings.weeklyRecord > 0 ? `週次記録が未記載 ${warnings.weeklyRecord}件` : null,
+      warnings.monthlyRecord > 0 ? `達成度評価が未実施 ${warnings.monthlyRecord}件` : null,
+    ].filter(Boolean);
+  }
+  if (cardId === 'home-users') {
+    return warnings.supportPlan > 0 ? [`個別支援計画 ${warnings.supportPlan}件`] : [];
+  }
+  return [];
+};
+
+const DashboardCard = ({ action, accent, passwordResetRequired, warnings, onSelect }) => {
   const needsPasswordChange = action.id === 'settings' && passwordResetRequired;
+  const warningLines = warningLinesForCard(action.id, warnings);
 
   return (
     <button
@@ -100,11 +155,20 @@ const DashboardCard = ({ action, accent, passwordResetRequired, onSelect }) => {
           要対応
         </span>
       )}
-      <span className={`mb-5 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-r text-2xl text-white ${
+      <span className={`mb-3 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-r text-2xl text-white ${
         needsPasswordChange ? 'from-red-500 to-red-600' : accent
       }`}>
         {action.icon}
       </span>
+      {warningLines.length > 0 && (
+        <span className="mb-3 flex flex-col gap-1">
+          {warningLines.map((line) => (
+            <span key={line} className="text-xs font-semibold leading-5 text-amber-800">
+              ⚠ {line}
+            </span>
+          ))}
+        </span>
+      )}
       <span className="text-xl font-bold text-gray-900">{action.title}</span>
       <span className="mt-2 text-sm leading-6 text-gray-600">
         {needsPasswordChange ? 'パスワードの変更が必要です。' : action.description}
@@ -117,6 +181,7 @@ const TmpDashboard = () => {
   const navigate = useNavigate();
   const { currentUser } = useInstructorGuard();
   const [localUser, setLocalUser] = useState(null);
+  const [warnings, setWarnings] = useState(emptyDashboardWarnings);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -149,6 +214,24 @@ const TmpDashboard = () => {
       company_name: locationToUse?.company_name || currentUser.company_name,
     });
   }, [currentUser, localUser]);
+
+  useEffect(() => {
+    const satelliteId = localUser?.satellite_id;
+    if (!satelliteId) return undefined;
+
+    let cancelled = false;
+    loadDashboardWarnings(satelliteId)
+      .then((nextWarnings) => {
+        if (!cancelled) setWarnings(nextWarnings);
+      })
+      .catch((error) => {
+        console.error('ダッシュボードの警告取得に失敗しました:', error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [localUser?.satellite_id]);
 
   const handleLocationChange = (newLocation) => {
     sessionStorage.setItem('selectedSatellite', JSON.stringify(newLocation));
@@ -206,7 +289,67 @@ const TmpDashboard = () => {
       return;
     }
     if (actionId === 'home-today') {
+      if (localUser?.satellite_id) {
+        sessionStorage.setItem('selectedSatellite', JSON.stringify({
+          id: localUser.satellite_id,
+          name: localUser.satellite_name,
+          company_id: localUser.company_id,
+          company_name: localUser.company_name,
+          type: localUser.location?.type || '就労移行支援事業所',
+          organization: localUser.location?.organization || 'スタディスフィア株式会社',
+        }));
+      }
+      navigate('/instructor/home-support/today');
+      return;
+    }
+    if (actionId === 'home-history') {
+      if (localUser?.satellite_id) {
+        sessionStorage.setItem('selectedSatellite', JSON.stringify({
+          id: localUser.satellite_id,
+          name: localUser.satellite_name,
+          company_id: localUser.company_id,
+          company_name: localUser.company_name,
+          type: localUser.location?.type || '就労移行支援事業所',
+          organization: localUser.location?.organization || 'スタディスフィア株式会社',
+        }));
+      }
+      navigate('/instructor/home-support/history');
+      return;
+    }
+    if (actionId === 'home-evaluations') {
+      if (localUser?.satellite_id) {
+        sessionStorage.setItem('selectedSatellite', JSON.stringify({
+          id: localUser.satellite_id,
+          name: localUser.satellite_name,
+          company_id: localUser.company_id,
+          company_name: localUser.company_name,
+          type: localUser.location?.type || '就労移行支援事業所',
+          organization: localUser.location?.organization || 'スタディスフィア株式会社',
+        }));
+      }
+      navigate('/instructor/home-support/evaluations');
+      return;
+    }
+    if (actionId === 'home-users') {
+      if (localUser?.satellite_id) {
+        sessionStorage.setItem('selectedSatellite', JSON.stringify({
+          id: localUser.satellite_id,
+          name: localUser.satellite_name,
+          company_id: localUser.company_id,
+          company_name: localUser.company_name,
+          type: localUser.location?.type || '就労移行支援事業所',
+          organization: localUser.location?.organization || 'スタディスフィア株式会社',
+        }));
+      }
+      navigate('/instructor/home-support/users');
+      return;
+    }
+    if (actionId === 'home-photos') {
       openHomeSupport('evidence');
+      return;
+    }
+    if (actionId === 'home-attendance') {
+      openHomeSupport('attendance');
       return;
     }
     if (actionId === 'home-support') {
@@ -270,13 +413,14 @@ const TmpDashboard = () => {
                   action={action}
                   accent={dashboardGroups[0].accent}
                   passwordResetRequired={passwordResetRequired}
+                  warnings={warnings}
                   onSelect={handleCardAction}
                 />
               ))}
             </div>
           </section>
 
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+          <div className="space-y-6">
             {dashboardGroups.slice(1).map((group) => (
               <section key={group.id} className={`rounded-3xl border p-5 sm:p-6 ${group.panelClass}`}>
                 <h2 className={`mb-4 text-sm font-semibold tracking-wide ${group.titleClass}`}>
@@ -289,6 +433,7 @@ const TmpDashboard = () => {
                       action={action}
                       accent={group.accent}
                       passwordResetRequired={passwordResetRequired}
+                      warnings={warnings}
                       onSelect={handleCardAction}
                     />
                   ))}

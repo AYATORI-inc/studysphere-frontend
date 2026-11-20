@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getCurrentUser } from '../../utils/userContext';
-import { getCurrentJapanTime, formatJapanDate } from '../../utils/dateUtils';
+import { formatJapanDate, getCurrentJapanTime } from '../../utils/dateUtils';
+import { buildRecordAlerts, buildSupportPlanAlerts } from '../../utils/dashboardWarnings';
 import { getSatelliteHomeSupportUsersWithDailyRecords, removeHomeSupportFlag, getSatelliteEvaluationStatus, getSatelliteSupportPlanGoalDates, getSatelliteSupportPlanStatus } from '../../utils/api';
 import HomeSupportUserAdditionModal from '../HomeSupportUserAdditionModal';
 import DailySupportRecordModal from '../DailySupportRecordModal';
@@ -261,147 +262,14 @@ const HomeSupportTab = () => {
       const response = await getSatelliteEvaluationStatus(currentSatellite.id);
       
       if (response.success && response.data) {
-        const now = getCurrentJapanTime();
-        const dailyRecordAlerts = [];
-        const weeklyRecordAlerts = [];
-        const monthlyRecordAlerts = [];
-        
-        const parseJapanDate = (value) => {
-          if (!value) return null;
-          if (value instanceof Date) return value;
-          
-          const stringValue = String(value).trim();
-          if (!stringValue) return null;
-          
-          const isoCandidate = `${stringValue}T00:00:00+09:00`;
-          const parsed = new Date(isoCandidate);
-          if (!Number.isNaN(parsed.getTime())) {
-            return parsed;
-          }
-          
-          const fallback = new Date(stringValue);
-          return Number.isNaN(fallback.getTime()) ? null : fallback;
-        };
-        
-        const calculateDaysSince = (targetDateValue) => {
-          const targetDate = parseJapanDate(targetDateValue);
-          if (!targetDate) return null;
-          
-          const diffMs = now.getTime() - targetDate.getTime();
-          const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-          return days < 0 ? 0 : days;
-        };
-        
-        response.data.forEach(user => {
-          // 日次記録のアラート（終業時刻があるのにrecorder_nameがない）
-          if (user.dailyStatus === '未完了') {
-            // 日次記録があるかチェック
-            const userData = students.find(s => s.id === user.id);
-            console.log('HomeSupportTab: アラートチェック - userId:', user.id, ', userData:', userData);
-            if (userData && userData.dailyRecords && userData.dailyRecords.length > 0) {
-              // 最新の日次記録を確認
-              const latestRecord = userData.dailyRecords[0];
-              console.log('HomeSupportTab: 最新記録 - userId:', user.id, ', markEnd:', latestRecord.markEnd, ', recorderName:', latestRecord.recorderName);
-              if (latestRecord.markEnd && !latestRecord.recorderName) {
-                console.log('HomeSupportTab: アラート追加 - userId:', user.id, ', userName:', user.name);
-                dailyRecordAlerts.push({
-                  userId: user.id,
-                  userName: user.name,
-                  date: latestRecord.date
-                });
-              }
-            }
-          }
-          
-          // 週次記録のアラート（最新の週次評価から一定日数以上経過、または週次評価未実施で日次記録が一定日数以上）
-          if (user.weeklyStatus === '未完了') {
-            const userData = students.find(s => s.id === user.id);
-            
-            const getOldestPendingDailyRecordDate = () => {
-              if (!userData || !Array.isArray(userData.dailyRecords) || userData.dailyRecords.length === 0) {
-                return null;
-              }
-
-              const lastWeeklyReference = user.lastWeeklyPeriodEnd || user.lastWeeklyRecordDate;
-              const lastWeeklyDate = parseJapanDate(lastWeeklyReference);
-
-              const sortedDailyRecords = [...userData.dailyRecords].sort((a, b) => {
-                const dateA = parseJapanDate(a.date);
-                const dateB = parseJapanDate(b.date);
-
-                if (dateA && dateB) return dateB - dateA; // 新しい順
-                if (dateA) return -1;
-                if (dateB) return 1;
-                return 0;
-              });
-
-              const pendingRecords = sortedDailyRecords.filter(record => {
-                const recordDate = parseJapanDate(record.date);
-                if (!recordDate) return false;
-                if (!lastWeeklyDate) return true;
-                return recordDate > lastWeeklyDate;
-              });
-
-              if (pendingRecords.length === 0) {
-                return null;
-              }
-
-              const oldestPendingRecord = pendingRecords[pendingRecords.length - 1];
-              return oldestPendingRecord?.date || null;
-            };
-
-            const oldestPendingDailyRecordDate = getOldestPendingDailyRecordDate();
-
-            const fallbackDailyRecordDate =
-              userData?.dailyRecords && userData.dailyRecords.length > 0
-                ? userData.dailyRecords[userData.dailyRecords.length - 1].date
-                : null;
-
-            const referenceDate =
-              oldestPendingDailyRecordDate ||
-              user.lastWeeklyPeriodEnd ||
-              user.lastWeeklyRecordDate ||
-              fallbackDailyRecordDate;
-            
-            const daysSinceRecord = calculateDaysSince(referenceDate);
-            
-            if (daysSinceRecord !== null && daysSinceRecord >= 7) {
-              weeklyRecordAlerts.push({
-                userId: user.id,
-                userName: user.name,
-                daysAgo: daysSinceRecord
-              });
-            }
-          }
-          
-          // 達成度評価のアラート（最新の達成度評価の次の月になっている、または最初の記録の次の月になっている）
-          if (user.monthlyStatus === '未完了') {
-            const userData = students.find(s => s.id === user.id);
-            if (userData && userData.dailyRecords && userData.dailyRecords.length > 0) {
-              const latestRecord = userData.dailyRecords[0];
-              const recordDate = new Date(latestRecord.date);
-              const recordMonth = recordDate.getMonth();
-              const recordYear = recordDate.getFullYear();
-              const currentMonth = now.getMonth();
-              const currentYear = now.getFullYear();
-              
-              // 記録日付の次の月になっているかチェック
-              if (currentYear > recordYear || (currentYear === recordYear && currentMonth > recordMonth)) {
-                monthlyRecordAlerts.push({
-                  userId: user.id,
-                  userName: user.name,
-                  recordDate: latestRecord.date
-                });
-              }
-            }
-          }
+        const recordAlerts = buildRecordAlerts({
+          evaluationUsers: response.data,
+          students,
+          now: getCurrentJapanTime(),
         });
-        
         setAlerts(prev => ({
           ...prev,
-          dailyRecord: dailyRecordAlerts,
-          weeklyRecord: weeklyRecordAlerts,
-          monthlyRecord: monthlyRecordAlerts
+          ...recordAlerts,
         }));
       }
     } catch (error) {
@@ -420,50 +288,7 @@ const HomeSupportTab = () => {
       
       if (response && response.success && response.data) {
         console.log('個別支援計画状況データ:', response.data);
-        const now = new Date();
-        const supportPlanAlerts = [];
-        
-        response.data.forEach(plan => {
-          console.log('個別支援計画チェック:', plan.user_name, 'status:', plan.status, 'goal_date:', plan.goal_date);
-          if (plan.status === 'no_record') {
-            // 個別支援計画が存在しない場合
-            console.log('アラート追加 - 記録なし:', plan.user_name);
-            supportPlanAlerts.push({
-              userId: plan.user_id,
-              userName: plan.user_name,
-              status: 'no_record',
-              message: `${plan.user_name}さんの個別支援計画がありません`
-            });
-          } else if (plan.status === 'no_goal_date' || !plan.goal_date || plan.goal_date === '') {
-            // 個別支援計画はあるが目標達成予定日が設定されていない場合
-            console.log('アラート追加 - 目標日なし:', plan.user_name);
-            supportPlanAlerts.push({
-              userId: plan.user_id,
-              userName: plan.user_name,
-              status: 'no_goal_date',
-              message: '個別支援計画の目標達成予定日を設定してください'
-            });
-          } else if (plan.status === 'has_goal_date' && plan.goal_date) {
-            // 目標達成予定日が設定されている場合、1カ月前チェック
-            const goalDate = new Date(plan.goal_date);
-            const oneMonthBefore = new Date(goalDate);
-            oneMonthBefore.setMonth(oneMonthBefore.getMonth() - 1);
-            
-            // 現在の日付が目標日から1カ月前を過ぎているかチェック
-            if (now >= oneMonthBefore) {
-              const daysUntilGoal = Math.ceil((goalDate - now) / (1000 * 60 * 60 * 24));
-              supportPlanAlerts.push({
-                userId: plan.user_id,
-                userName: plan.user_name,
-                status: 'update_needed',
-                goalDate: plan.goal_date,
-                daysUntilGoal: daysUntilGoal,
-                message: '個別支援計画を更新してください'
-              });
-            }
-          }
-        });
-        
+        const supportPlanAlerts = buildSupportPlanAlerts(response.data);
         console.log('個別支援計画アラート設定:', supportPlanAlerts);
         setAlerts(prev => ({
           ...prev,

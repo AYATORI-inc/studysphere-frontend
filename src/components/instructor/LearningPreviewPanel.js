@@ -22,7 +22,7 @@ const DisabledFeatureCallout = () => (
     <ul className="list-disc pl-5 text-sm text-yellow-800 space-y-1">
       <li>テスト（提出/採点/結果表示） ※問題画面の閲覧は可能</li>
       <li>提出物（アップロード/削除）</li>
-      <li>適職診断 / TOYBOX へのリンク</li>
+      <li>おしごとコネクト / TOYBOX へのリンク</li>
     </ul>
     <div className="mt-2 text-xs text-yellow-700">上記はプレビューでは実行できません（閲覧・導線確認のみ）。</div>
   </div>
@@ -442,7 +442,7 @@ const LearningPreviewPanel = () => {
                 title="プレビューでは利用できません"
                 disabled
               >
-                🎯 適職診断（無効）
+                🎯 おしごとコネクト（無効）
               </button>
               <button
                 className="px-4 py-2 rounded-lg font-medium text-gray-400 bg-gray-50 cursor-not-allowed"

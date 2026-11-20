@@ -3,6 +3,7 @@ import { getUserHealthData, getUserWorkPlan, updateUserDailyReport } from '../ut
 import { getSatelliteInstructors } from '../utils/api';
 import { getCurrentUser } from '../utils/userContext';
 import { API_BASE_URL } from '../config/apiConfig';
+import { formatJapanTimeOfInstant } from '../utils/dateUtils';
 
 /**
  * 日次支援記録モーダル
@@ -118,10 +119,10 @@ const DailySupportRecordModal = ({
         if (healthResult.data) {
           setRecord(prev => ({
             ...prev,
-            startTime: healthResult.data.mark_start ? new Date(healthResult.data.mark_start).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : '',
-            endTime: healthResult.data.mark_end ? new Date(healthResult.data.mark_end).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : '',
-            breakStartTime: healthResult.data.mark_lunch_start ? new Date(healthResult.data.mark_lunch_start).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : '',
-            breakEndTime: healthResult.data.mark_lunch_end ? new Date(healthResult.data.mark_lunch_end).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : ''
+            startTime: formatJapanTimeOfInstant(healthResult.data.mark_start) || '',
+            endTime: formatJapanTimeOfInstant(healthResult.data.mark_end) || '',
+            breakStartTime: formatJapanTimeOfInstant(healthResult.data.mark_lunch_start) || '',
+            breakEndTime: formatJapanTimeOfInstant(healthResult.data.mark_lunch_end) || ''
           }));
         }
       }

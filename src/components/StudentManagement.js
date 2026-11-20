@@ -62,10 +62,6 @@ const StudentManagementRefactored = ({ teacherId, onTestApproval, onSubmissionAp
   const [showCourseAssignmentModal, setShowCourseAssignmentModal] = useState(false);
   const [showCourseManagerModal, setShowCourseManagerModal] = useState(false);
 
-  // 適職診断管理画面への遷移状態
-  const [isLoadingCareerAssessment, setIsLoadingCareerAssessment] = useState(false);
-
-
   // 合格承認モーダルの状態
   const [showTestApprovalModal, setShowTestApprovalModal] = useState(false);
   const [selectedStudentForApproval, setSelectedStudentForApproval] = useState(null);
@@ -132,64 +128,6 @@ const StudentManagementRefactored = ({ teacherId, onTestApproval, onSubmissionAp
     // 利用者データを再取得
     fetchStudents();
   };
-
-  // 適職診断管理画面への遷移
-  const handleCareerAssessmentClick = async () => {
-    setIsLoadingCareerAssessment(true);
-    
-    try {
-      // アクセストークンを取得
-      const accessToken = localStorage.getItem('accessToken');
-      
-      if (!accessToken) {
-        alert('認証トークンが見つかりません。再度ログインしてください。');
-        setIsLoadingCareerAssessment(false);
-        return;
-      }
-
-      // SSOチケット生成APIを呼び出し
-      const response = await fetch(`${API_BASE_URL}/api/sso/ticket/generate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`
-        },
-        body: JSON.stringify({
-          target_system: 'findjob',
-          source_system: 'studysphere',
-          context: 'career_assessment_admin'
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || 'SSOチケットの生成に失敗しました');
-      }
-
-      const result = await response.json();
-      
-      if (!result.success || !result.data?.ticket) {
-        throw new Error('SSOチケットの生成に失敗しました');
-      }
-
-      // 生成されたチケットを使ってfindjobのauto-loginページにリダイレクト
-      const ticket = result.data.ticket;
-      const careerAssessmentUrl = `https://findjob.myou-kou.com/auto-login?ticket=${encodeURIComponent(ticket)}`;
-      
-      // 適職診断管理画面を新しいタブで開く
-      window.open(careerAssessmentUrl, '_blank');
-      
-      // ローディング状態を解除
-      setIsLoadingCareerAssessment(false);
-      
-    } catch (error) {
-      console.error('適職診断管理画面への遷移エラー:', error);
-      alert(error.message || '適職診断管理画面への遷移に失敗しました。');
-      setIsLoadingCareerAssessment(false);
-    }
-  };
-
-
 
   // 現在の拠点IDを取得
   useEffect(() => {
@@ -836,22 +774,14 @@ const StudentManagementRefactored = ({ teacherId, onTestApproval, onSubmissionAp
               >
                 + 新しい利用者を追加
               </button>
-              <button 
-                className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                onClick={handleCareerAssessmentClick}
-                disabled={isLoadingCareerAssessment}
+              <a
+                href="https://jobconnect.ayatori-inc.co.jp/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2"
               >
-                {isLoadingCareerAssessment ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    読み込み中...
-                  </>
-                ) : (
-                  <>
-                    🎯 適職診断管理
-                  </>
-                )}
-              </button>
+                🎯 おしごとコネクト
+              </a>
             </div>
           </div>
         </div>

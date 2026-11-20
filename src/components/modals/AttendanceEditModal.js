@@ -57,7 +57,7 @@ const AttendanceEditModal = ({ isOpen, onClose, record, date, onSuccess }) => {
 
       if (response.success) {
         if (onSuccess) {
-          onSuccess();
+          onSuccess({ ...formData });
         }
         onClose();
       } else {

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useInstructorGuard } from '../utils/hooks/useAuthGuard';
+import InstructorHeader from '../components/InstructorHeader';
 import { apiCall } from '../utils/api';
 import { getSupportPlanByUserId } from '../utils/api';
 import { normalizeSatelliteId, getCurrentUserSatelliteId } from '../utils/locationUtils';
@@ -18,6 +19,54 @@ const MonthlyEvaluationPage = () => {
   const { studentId } = useParams();
   const [searchParams] = useSearchParams();
   const { currentUser } = useInstructorGuard();
+  const [localUser, setLocalUser] = useState(null);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const savedSatellite = sessionStorage.getItem('selectedSatellite');
+    let locationToUse = null;
+    if (savedSatellite) {
+      try {
+        const parsed = JSON.parse(savedSatellite);
+        if (parsed?.id) locationToUse = parsed;
+      } catch (parseError) {
+        console.error('達成度評価(月次): 拠点情報のパースエラー:', parseError);
+      }
+    }
+    if (!locationToUse && currentUser.satellite_id) {
+      locationToUse = {
+        id: currentUser.satellite_id,
+        name: currentUser.satellite_name,
+        company_id: currentUser.company_id,
+        company_name: currentUser.company_name,
+      };
+    }
+    setLocalUser({
+      ...currentUser,
+      location: locationToUse,
+      satellite_id: locationToUse?.id || currentUser.satellite_id,
+      satellite_name: locationToUse?.name || currentUser.satellite_name,
+      company_id: locationToUse?.company_id || currentUser.company_id,
+      company_name: locationToUse?.company_name || currentUser.company_name,
+    });
+  }, [currentUser]);
+
+  const handleLocationChange = (newLocation) => {
+    sessionStorage.setItem('selectedSatellite', JSON.stringify(newLocation));
+    const updatedUser = {
+      ...localUser,
+      satellite_id: newLocation.id,
+      satellite_name: newLocation.name,
+      company_id: newLocation.company_id,
+      company_name: newLocation.company_name,
+      location: newLocation,
+    };
+    setLocalUser(updatedUser);
+    localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+    window.dispatchEvent(new CustomEvent('satelliteChanged', {
+      detail: { newLocation },
+    }));
+  };
   
   // 戻る際に拠点情報を保存する関数
   const saveLocationAndNavigate = () => {
@@ -865,10 +914,15 @@ const MonthlyEvaluationPage = () => {
     return `${startDate.getFullYear()}年${startDate.getMonth() + 1}月${startDate.getDate()}日 〜 ${endDate.getFullYear()}年${endDate.getMonth() + 1}月${endDate.getDate()}日`;
   };
 
-  if (isLoading || !student) {
+  if (!currentUser || !localUser || isLoading || !student) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-indigo-50 flex items-center justify-center">
-        <div className="text-purple-600 text-xl font-semibold">読み込み中...</div>
+      <div className="min-h-screen bg-gray-50">
+        {localUser && (
+          <InstructorHeader user={localUser} onLocationChange={handleLocationChange} />
+        )}
+        <div className="flex items-center justify-center py-24">
+          <div className="text-indigo-600 text-xl font-semibold">読み込み中...</div>
+        </div>
       </div>
     );
   }
@@ -883,73 +937,60 @@ const MonthlyEvaluationPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-indigo-50">
-      {/* ヘッダー */}
-      <div className="bg-gradient-to-r from-purple-600 to-indigo-700 text-white shadow-lg">
-        <div className="max-w-full mx-auto px-6 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <button 
-                className="px-4 py-2 bg-white bg-opacity-10 border border-white border-opacity-30 rounded-lg hover:bg-opacity-20 transition-all duration-200 font-medium"
-                onClick={saveLocationAndNavigate}
-              >
-                ← 在宅支援管理に戻る
-              </button>
-              <div>
-                <h1 className="text-3xl font-bold mb-1">📈 達成度評価作成</h1>
-                <p className="text-purple-100 text-sm">在宅における就労達成度評価シート</p>
-              </div>
+    <div className="min-h-screen bg-gray-50">
+      <InstructorHeader user={localUser} onLocationChange={handleLocationChange} />
+      <main className="max-w-7xl mx-auto px-6 py-8">
+        <div className="mb-6">
+          <p className="text-sm font-medium text-emerald-700">在宅</p>
+          <h1 className="mt-1 text-3xl font-bold text-gray-900">達成度評価(月次)</h1>
+          <p className="mt-2 text-gray-600">在宅における就労達成度評価シートを作成します。</p>
+        </div>
+
+        <div className="mb-6 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <div className="space-y-2 text-sm text-gray-600">
+              <p>
+                <span>対象者</span>
+                <span className="ml-2 font-semibold text-gray-900">{student.name}</span>
+              </p>
+              <p>
+                <span>受給者証番号</span>
+                <span className="ml-2 font-semibold text-gray-900">{student.recipientNumber}</span>
+              </p>
+              <p>
+                <span>前回評価日</span>
+                <span className="ml-2 font-semibold text-gray-900">{prevEvalDate ? formatDate(prevEvalDate) : 'なし'}</span>
+              </p>
             </div>
-          </div>
-          
-          {/* 期間設定 */}
-          <div className="mt-6 bg-white bg-opacity-10 rounded-xl p-4 border border-white border-opacity-20">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-3">
-                <div className="text-sm">
-                  <span className="text-purple-200">対象者:</span>
-                  <span className="ml-2 font-semibold text-white">{student.name}</span>
-                  <span className="ml-3 text-purple-200">受給者証番号:</span>
-                  <span className="ml-2 font-semibold text-white">{student.recipientNumber}</span>
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700">対象期間</label>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <input
+                    type="date"
+                    value={periodStart}
+                    onChange={(e) => setPeriodStart(e.target.value)}
+                    className="w-full rounded-lg border-2 border-gray-300 px-3 py-2 font-medium text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">開始日</p>
                 </div>
-                <div className="text-sm">
-                  <span className="text-purple-200">前回評価日:</span>
-                  <span className="ml-2 font-semibold text-white">{prevEvalDate ? formatDate(prevEvalDate) : 'なし'}</span>
+                <div>
+                  <input
+                    type="date"
+                    value={periodEnd}
+                    onChange={(e) => setPeriodEnd(e.target.value)}
+                    className="w-full rounded-lg border-2 border-gray-300 px-3 py-2 font-medium text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">終了日</p>
                 </div>
               </div>
-              <div>
-                <label className="block text-purple-200 text-sm mb-2">📅 対象期間を設定</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <input
-                      type="date"
-                      value={periodStart}
-                      onChange={(e) => setPeriodStart(e.target.value)}
-                      className="w-full px-3 py-2 bg-white bg-opacity-90 text-gray-800 rounded-lg border-2 border-purple-300 focus:ring-2 focus:ring-white focus:border-white font-semibold"
-                    />
-                    <p className="text-xs text-purple-100 mt-1">開始日</p>
-                  </div>
-                  <div>
-                    <input
-                      type="date"
-                      value={periodEnd}
-                      onChange={(e) => setPeriodEnd(e.target.value)}
-                      className="w-full px-3 py-2 bg-white bg-opacity-90 text-gray-800 rounded-lg border-2 border-purple-300 focus:ring-2 focus:ring-white focus:border-white font-semibold"
-                    />
-                    <p className="text-xs text-purple-100 mt-1">終了日</p>
-                  </div>
-                </div>
-                <p className="text-xs text-purple-100 mt-2">
-                  現在の期間: {formatPeriod(periodStart, periodEnd)}
-                </p>
-              </div>
+              <p className="mt-2 text-xs text-gray-500">
+                現在の期間: {formatPeriod(periodStart, periodEnd)}
+              </p>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* メインコンテンツ */}
-      <div className="max-w-full mx-auto px-6 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* 左側：個別支援計画 + 週次評価一覧 */}
           <div className="lg:col-span-1 space-y-6">
@@ -1362,7 +1403,7 @@ const MonthlyEvaluationPage = () => {
             </div>
           </div>
         </div>
-      </div>
+      </main>
 
       {/* 印刷モーダル */}
       <MonthlyReportPrintModal
@@ -1378,4 +1419,5 @@ const MonthlyEvaluationPage = () => {
 };
 
 export default MonthlyEvaluationPage;
+
 

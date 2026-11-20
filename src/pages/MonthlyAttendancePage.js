@@ -4,7 +4,7 @@ import InstructorHeader from '../components/InstructorHeader';
 import { useInstructorGuard } from '../utils/hooks/useAuthGuard';
 import { getSatelliteHomeSupportUsers, getMonthlyAttendance } from '../utils/api';
 import { getCurrentUser } from '../utils/userContext';
-import { formatUTCToJSTTimeOnly } from '../utils/dateUtils';
+import { formatStoredMarkTime } from '../utils/dateUtils';
 
 function MonthlyAttendancePage() {
   const navigate = useNavigate();
@@ -171,10 +171,10 @@ function MonthlyAttendancePage() {
           
           return {
             ...record,
-            startTime: record.startTimeUTC ? formatUTCToJSTTimeOnly(record.startTimeUTC) : null,
-            endTime: record.endTimeUTC ? formatUTCToJSTTimeOnly(record.endTimeUTC) : null,
-            breakStartTime: record.breakStartTimeUTC ? formatUTCToJSTTimeOnly(record.breakStartTimeUTC) : null,
-            breakEndTime: record.breakEndTimeUTC ? formatUTCToJSTTimeOnly(record.breakEndTimeUTC) : null,
+            startTime: record.startTimeUTC ? formatStoredMarkTime(record.startTimeUTC) : null,
+            endTime: record.endTimeUTC ? formatStoredMarkTime(record.endTimeUTC) : null,
+            breakStartTime: record.breakStartTimeUTC ? formatStoredMarkTime(record.breakStartTimeUTC) : null,
+            breakEndTime: record.breakEndTimeUTC ? formatStoredMarkTime(record.breakEndTimeUTC) : null,
             workingTimeDisplay: workingTimeDisplay
           };
         });

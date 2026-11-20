@@ -22,6 +22,10 @@ import DailyRecordsPage from './pages/DailyRecordsPage';
 import HomeSupportDailyRecordsPage from './pages/HomeSupportDailyRecordsPage';
 import HomeSupportEvaluationsPage from './pages/HomeSupportEvaluationsPage';
 import HomeSupportDashboard from './pages/HomeSupportDashboard_new';
+import HomeSupportUsersInfoPage from './pages/HomeSupportUsersInfoPage';
+import HomeSupportTodayPage from './pages/HomeSupportTodayPage';
+import HomeSupportHistoryPage from './pages/HomeSupportHistoryPage';
+import HomeSupportEvaluationRecordsPage from './pages/HomeSupportEvaluationRecordsPage';
 import WeeklyEvaluationPage from './pages/WeeklyEvaluationPage';
 import MonthlyEvaluationPage from './pages/MonthlyEvaluationPage';
 import MonthlyEvaluationHistoryPage from './pages/MonthlyEvaluationHistoryPage';
@@ -78,6 +82,10 @@ function App() {
             <Route path="/instructor/old-dashboard" element={<InstructorDashboard />} />
             {/* 在宅支援専用ダッシュボード */}
             <Route path="/instructor/home-support" element={<HomeSupportDashboard />} />
+            <Route path="/instructor/home-support/users" element={<HomeSupportUsersInfoPage />} />
+            <Route path="/instructor/home-support/today" element={<HomeSupportTodayPage />} />
+            <Route path="/instructor/home-support/history" element={<HomeSupportHistoryPage />} />
+            <Route path="/instructor/home-support/evaluations" element={<HomeSupportEvaluationRecordsPage />} />
             {/* 互換性のため古いパスも残す */}
             <Route path="/teacher/dashboard" element={<TmpDashboard />} />
             {/* 利用者用ログイン（トークンベース） */}
