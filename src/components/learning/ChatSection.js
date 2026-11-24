@@ -26,7 +26,7 @@ const ChatSection = ({
   }, [chatMessages]);
 
   return (
-    <div className="bg-white rounded-2xl shadow-xl p-6 h-full flex flex-col overflow-hidden">
+    <div className="student-ai bg-white rounded-2xl shadow-xl p-6 h-full flex flex-col overflow-hidden">
       <div className="flex items-center gap-3 mb-4 workspace-widget-handle cursor-move select-none">
         <span className="text-2xl">🤖</span>
         <h3 className="text-xl font-bold text-gray-800">AIアシスタント</h3>

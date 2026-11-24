@@ -85,7 +85,7 @@ const Dashboard = ({ onTabChange, messageRefreshSignal = 0 }) => {
             console.warn('最終アクセス日時の更新に失敗しました（遷移は継続）:', e);
           }
 
-          navigate(`/student/enhanced-learning?course=${courseId}&lesson=${currentLesson.lesson_id}`);
+          navigate(`/student/old-enhanced-learning?course=${courseId}&lesson=${currentLesson.lesson_id}`);
           return;
         }
       }
@@ -129,7 +129,7 @@ const Dashboard = ({ onTabChange, messageRefreshSignal = 0 }) => {
             }
             
             // 学習画面に遷移
-            navigate(`/student/enhanced-learning?course=${courseId}&lesson=${firstLesson.id}`);
+            navigate(`/student/old-enhanced-learning?course=${courseId}&lesson=${firstLesson.id}`);
             return;
           }
         }
@@ -183,7 +183,7 @@ const Dashboard = ({ onTabChange, messageRefreshSignal = 0 }) => {
                     })
                   });
                   
-                  navigate(`/student/enhanced-learning?course=${courseId}&lesson=${firstLesson.id}`);
+                  navigate(`/student/old-enhanced-learning?course=${courseId}&lesson=${firstLesson.id}`);
                   return;
                 }
               }
@@ -267,11 +267,11 @@ const Dashboard = ({ onTabChange, messageRefreshSignal = 0 }) => {
           refreshSignal={messageRefreshSignal}
         />
         
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="space-y-8">
           {/* 受講可能なコースセクション */}
           <section className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
             <h3 className="text-xl font-bold text-gray-800 mb-6">📚 受講可能コース</h3>
-            <div className="space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {enrolledCourses.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <p className="text-lg mb-2">受講可能なコースがありません</p>

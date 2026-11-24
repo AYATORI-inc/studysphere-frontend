@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useStudentGuard } from '../utils/hooks/useAuthGuard';
 import { useAuth } from '../components/contexts/AuthContext';
 import { verifyTemporaryPasswordAPI, apiGet } from '../utils/api';
 import { saveTempPasswordAuth } from '../utils/authUtils';
 import { API_BASE_URL } from '../config/apiConfig';
 import Dashboard from './Dashboard';
-import LessonList from './LessonList';
+import StudentHome from './StudentHome';
+import StudentLessonCatalog from './StudentLessonCatalog';
 import ToyBox from '../components/ToyBox';
 import PersonalMessageList from '../components/PersonalMessageList';
 import AnnouncementList from '../components/AnnouncementList';
@@ -15,9 +16,10 @@ import { fetchLatestMessageSummary, truncateText } from '../utils/messageUtils';
 
 const StudentDashboard = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [selectedCourseId, setSelectedCourseId] = useState(null);
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
+  const isLegacyDashboard = location.pathname === '/student/old-dashboard';
   const { currentUser } = useStudentGuard();
   const { login, logout } = useAuth();
   const [isAutoLoggingIn, setIsAutoLoggingIn] = useState(false);
@@ -557,16 +559,21 @@ const StudentDashboard = () => {
   };
 
   // タブ切り替えとコース選択の処理
-  const handleTabChange = (tab, courseId = null) => {
+  const handleTabChange = (tab) => {
     setActiveTab(tab);
-    if (courseId) {
-      setSelectedCourseId(courseId);
-    }
   };
+
+  useEffect(() => {
+    if (location.state?.tab) {
+      setActiveTab(location.state.tab);
+      return;
+    }
+    setActiveTab('dashboard');
+  }, [location.pathname, location.state]);
 
   if (!currentUser) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-cyan-50 flex items-center justify-center">
+      <div className="student-shell min-h-screen bg-gradient-to-br from-blue-50 to-cyan-50 flex items-center justify-center">
         <div className="text-center">
           <div className="text-blue-600 text-xl font-semibold mb-4">
             {isAutoLoggingIn ? '自動ログイン中...' : '認証中...'}
@@ -602,14 +609,18 @@ const StudentDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-cyan-50 flex flex-col">
+    <div className="student-shell min-h-screen bg-gradient-to-br from-blue-50 to-cyan-50 flex flex-col">
       {/* ヘッダー */}
-      <div className="bg-gradient-to-r from-blue-500 to-cyan-600 text-white shadow-lg">
+      <div className="student-chrome bg-gradient-to-r from-blue-500 to-cyan-600 text-white shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold text-white">Study Sphere</h1>
+                <h1 className="text-2xl font-bold text-white">
+                  <Link to="/student/dashboard" className="hover:underline" title="ダッシュボードへ戻る">
+                    Study Sphere
+                  </Link>
+                </h1>
                 <span className="px-3 py-1 bg-white bg-opacity-20 rounded-full text-sm font-semibold">
                   利用者
                 </span>
@@ -618,38 +629,21 @@ const StudentDashboard = () => {
             
             <div className="flex flex-col md:flex-row items-center gap-4">
               <div className="flex items-center gap-3">
-                <span className="font-medium text-white">
+                <button
+                  type="button"
+                  className="px-3 py-1.5 rounded-lg font-medium text-white bg-white/15 hover:bg-white/25 transition-colors"
+                  onClick={() => navigate('/student/account')}
+                  title="アカウント情報"
+                >
                   {currentUser.name}さん
-                  {(() => {
-                    console.log('指導員情報デバッグ:', {
-                      instructorName: currentUser.instructorName,
-                      type: typeof currentUser.instructorName,
-                      isTruthy: !!currentUser.instructorName,
-                      currentUser: currentUser
-                    });
-                    
-                    // 指導員名が存在し、空文字列でない場合のみ表示
-                    if (currentUser.instructorName && currentUser.instructorName.trim() !== '') {
-                      return (
-                        <span className="text-blue-100 text-sm ml-2">
-                          （担当：{currentUser.instructorName}指導員）
-                        </span>
-                      );
-                    } else {
-                      return (
-                        <span className="text-blue-100 text-sm ml-2">
-                          （担当：未設定）
-                        </span>
-                      );
-                    }
-                  })()}
-                </span>
-                <button 
-                  className="px-4 py-2 bg-red-500 hover:bg-red-600 border border-red-400 rounded-lg transition-all duration-200 font-medium text-white shadow-sm hover:shadow-md"
+                </button>
+                <button
+                  type="button"
+                  className="px-3 py-1.5 rounded-lg font-medium text-white bg-white/15 hover:bg-white/25 transition-colors"
                   onClick={handleLogout}
                   title="ログアウト"
                 >
-                  🚪 ログアウト
+                  ログアウト
                 </button>
               </div>
             </div>
@@ -658,9 +652,9 @@ const StudentDashboard = () => {
       </div>
 
       {/* ナビゲーション */}
-      <div className="bg-white shadow-md">
+      <div className="student-nav bg-white shadow-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <button 
               className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
                 activeTab === 'dashboard'
@@ -704,6 +698,14 @@ const StudentDashboard = () => {
               />
               <span>TOYBOX</span>
             </button>
+            {!isLegacyDashboard && (
+              <Link
+                to="/student/old-dashboard"
+                className="ml-auto px-4 py-2 rounded-lg font-medium text-gray-600 hover:bg-blue-50 hover:text-blue-700 transition-all duration-200"
+              >
+                旧ダッシュボードへ移動
+              </Link>
+            )}
           </div>
         </div>
       </div>
@@ -764,15 +766,20 @@ const StudentDashboard = () => {
         <div className="space-y-8">
           {/* アクティブタブに応じたコンテンツ表示 */}
           {activeTab === 'dashboard' && (
-            <div className="bg-white rounded-2xl shadow-xl p-8">
-              <Dashboard onTabChange={handleTabChange} messageRefreshSignal={messageRefreshSignal} />
-            </div>
+            isLegacyDashboard ? (
+              <div className="bg-white rounded-2xl shadow-xl p-8">
+                <Dashboard onTabChange={handleTabChange} messageRefreshSignal={messageRefreshSignal} />
+              </div>
+            ) : (
+              <StudentHome
+                messageRefreshSignal={messageRefreshSignal}
+                onOpenLessons={() => handleTabChange('lessons')}
+              />
+            )
           )}
           
           {activeTab === 'lessons' && (
-            <div className="bg-white rounded-2xl shadow-xl p-8">
-              <LessonList selectedCourseId={selectedCourseId} />
-            </div>
+            <StudentLessonCatalog />
           )}
           
           {activeTab === 'toybox' && (

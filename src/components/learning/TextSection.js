@@ -1051,7 +1051,7 @@ const TextSection = ({
 
   if (textLoading) {
     return (
-      <div className="bg-white rounded-2xl shadow-xl p-6 h-full min-w-0 flex flex-col overflow-hidden">
+      <div className="student-textbook bg-white rounded-2xl shadow-xl p-6 h-full min-w-0 flex flex-col overflow-hidden">
         <div className="flex items-center gap-3 mb-4 workspace-widget-handle cursor-move select-none">
           <span className="text-2xl">📄</span>
           <h3 className="text-xl font-bold text-gray-800">テキスト内容</h3>
@@ -1067,7 +1067,7 @@ const TextSection = ({
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow-xl p-6 h-full min-w-0 flex flex-col overflow-hidden">
+    <div className="student-textbook bg-white rounded-2xl shadow-xl p-6 h-full min-w-0 flex flex-col overflow-hidden">
       <div className="flex items-center gap-3 mb-4 flex-none workspace-widget-handle cursor-move select-none">
         <span className="text-2xl">📄</span>
         <h3 className="text-xl font-bold text-gray-800">テキスト内容</h3>

@@ -8,6 +8,9 @@ import InstructorDashboard from './pages/InstructorDashboard';
 import TmpDashboard from './pages/TmpDashboard';
 import StudentLogin from './pages/StudentLogin';
 import StudentDashboard from './pages/StudentDashboard';
+import StudentAccountPage from './pages/StudentAccountPage';
+import StudentCurriculumPage from './pages/StudentCurriculumPage';
+import StudentLearningPage from './pages/StudentLearningPage';
 import AutoLoginPage from './pages/AutoLoginPage';
 import SSOLoginPage from './pages/SSOLoginPage';
 import SSODispatcherPage from './pages/SSODispatcherPage';
@@ -40,6 +43,7 @@ import MonthlyEvaluationHistoryPage from './pages/MonthlyEvaluationHistoryPage';
 import MonthlyAttendancePage from './pages/MonthlyAttendancePage';
 import HomeSupportRecordsPage from './pages/HomeSupportRecordsPage';
 import InstructorStudentDetail from './pages/InstructorStudentDetail';
+import StudentColorModeSync from './components/student/StudentColorModeSync';
 import './App.css';
 
 // デバッグ用のテストコンポーネント
@@ -70,6 +74,7 @@ function App() {
         v7_relativeSplatPath: true
       }}
     >
+      <StudentColorModeSync />
       <AuthProvider>
         <div className="App">
           <Routes>
@@ -118,8 +123,11 @@ function App() {
             <Route path="/sso-dispatch" element={<SSODispatcherPage />} />
             {/* 利用者用ダッシュボード */}
             <Route path="/student/dashboard" element={<StudentDashboard />} />
-            {/* 学習画面（リファクタリング版を使用） */}
-            <Route path="/student/enhanced-learning" element={<EnhancedLearningPageRefactored />} />
+            <Route path="/student/old-dashboard" element={<StudentDashboard />} />
+            <Route path="/student/account" element={<StudentAccountPage />} />
+            <Route path="/student/curriculum/:courseId" element={<StudentCurriculumPage />} />
+            <Route path="/student/enhanced-learning" element={<StudentLearningPage />} />
+            <Route path="/student/old-enhanced-learning" element={<EnhancedLearningPageRefactored />} />
             {/* 学習効果テスト関連 */}
             <Route path="/student/test" element={<TestPage />} />
             <Route path="/student/section-test" element={<SectionTestPage />} />

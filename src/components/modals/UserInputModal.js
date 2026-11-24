@@ -4,6 +4,7 @@ import { getSatelliteInstructors } from '../../utils/api';
 import { getCurrentUser } from '../../utils/userContext';
 import { API_BASE_URL } from '../../config/apiConfig';
 import { formatJapanTimeOfInstant } from '../../utils/dateUtils';
+import HalfHourTimeInput, { toClockTime } from '../common/HalfHourTimeInput';
 
 const DATETIME_LOCAL_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 const MYSQL_DATETIME_REGEX = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
@@ -268,10 +269,10 @@ const UserInputModal = ({ isOpen, onClose, selectedUser, staffInput = false }) =
             temperature: healthResult.data.temperature || '',
             condition: healthResult.data.condition || '普通',
             condition_note: healthResult.data.condition_note || '',
-            mark_start: markTimeForInput(healthResult.data.mark_start),
-            mark_end: markTimeForInput(healthResult.data.mark_end),
-            mark_lunch_start: markTimeForInput(healthResult.data.mark_lunch_start),
-            mark_lunch_end: markTimeForInput(healthResult.data.mark_lunch_end),
+            mark_start: toClockTime(markTimeForInput(healthResult.data.mark_start)),
+            mark_end: toClockTime(markTimeForInput(healthResult.data.mark_end)),
+            mark_lunch_start: toClockTime(markTimeForInput(healthResult.data.mark_lunch_start)),
+            mark_lunch_end: toClockTime(markTimeForInput(healthResult.data.mark_lunch_end)),
             sleep_hours: healthResult.data.sleep_hours || ''
           }));
         }
@@ -292,10 +293,10 @@ const UserInputModal = ({ isOpen, onClose, selectedUser, staffInput = false }) =
             daily_report: workResult.data.daily_report || '',
             recorder_name: workResult.data.recorder_name || '',
             // workPlanから昼休憩時間も取得
-            mark_start: markTimeForInput(workResult.data.mark_start) || prev.mark_start || '',
-            mark_end: markTimeForInput(workResult.data.mark_end) || prev.mark_end || '',
-            mark_lunch_start: markTimeForInput(workResult.data.mark_lunch_start) || prev.mark_lunch_start || '',
-            mark_lunch_end: markTimeForInput(workResult.data.mark_lunch_end) || prev.mark_lunch_end || '',
+            mark_start: toClockTime(markTimeForInput(workResult.data.mark_start) || prev.mark_start || ''),
+            mark_end: toClockTime(markTimeForInput(workResult.data.mark_end) || prev.mark_end || ''),
+            mark_lunch_start: toClockTime(markTimeForInput(workResult.data.mark_lunch_start) || prev.mark_lunch_start || ''),
+            mark_lunch_end: toClockTime(markTimeForInput(workResult.data.mark_lunch_end) || prev.mark_lunch_end || ''),
             sleep_hours: prev.sleep_hours || (healthResult.data ? healthResult.data.sleep_hours || '' : '')
           }));
           // work_noteを初期化（AI提案で使用）
@@ -577,11 +578,10 @@ const UserInputModal = ({ isOpen, onClose, selectedUser, staffInput = false }) =
                       <div className="bg-white rounded-lg p-4 border border-purple-100">
                         <label className="block text-sm font-medium text-gray-700 mb-2">実施時間 (開始)</label>
                         {isEditing ? (
-                          <input
-                            type="time"
+                          <HalfHourTimeInput
                             value={editData.mark_start || ''}
-                            onChange={(e) => setEditData(prev => ({ ...prev, mark_start: e.target.value }))}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                            onChange={(mark_start) => setEditData(prev => ({ ...prev, mark_start }))}
+                            className="focus:ring-purple-500"
                           />
                         ) : (
                           <div className="text-lg font-semibold text-purple-600">
@@ -593,11 +593,10 @@ const UserInputModal = ({ isOpen, onClose, selectedUser, staffInput = false }) =
                       <div className="bg-white rounded-lg p-4 border border-purple-100">
                         <label className="block text-sm font-medium text-gray-700 mb-2">実施時間 (終了)</label>
                         {isEditing ? (
-                          <input
-                            type="time"
+                          <HalfHourTimeInput
                             value={editData.mark_end || ''}
-                            onChange={(e) => setEditData(prev => ({ ...prev, mark_end: e.target.value }))}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                            onChange={(mark_end) => setEditData(prev => ({ ...prev, mark_end }))}
+                            className="focus:ring-purple-500"
                           />
                         ) : (
                           <div className="text-lg font-semibold text-purple-600">
@@ -611,11 +610,10 @@ const UserInputModal = ({ isOpen, onClose, selectedUser, staffInput = false }) =
                       <div className="bg-white rounded-lg p-4 border border-purple-100">
                         <label className="block text-sm font-medium text-gray-700 mb-2">昼休憩開始</label>
                         {isEditing ? (
-                          <input
-                            type="time"
+                          <HalfHourTimeInput
                             value={editData.mark_lunch_start || ''}
-                            onChange={(e) => setEditData(prev => ({ ...prev, mark_lunch_start: e.target.value }))}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                            onChange={(mark_lunch_start) => setEditData(prev => ({ ...prev, mark_lunch_start }))}
+                            className="focus:ring-purple-500"
                           />
                         ) : (
                           <div className="text-lg font-semibold text-purple-600">
@@ -627,11 +625,10 @@ const UserInputModal = ({ isOpen, onClose, selectedUser, staffInput = false }) =
                       <div className="bg-white rounded-lg p-4 border border-purple-100">
                         <label className="block text-sm font-medium text-gray-700 mb-2">昼休憩終了</label>
                         {isEditing ? (
-                          <input
-                            type="time"
+                          <HalfHourTimeInput
                             value={editData.mark_lunch_end || ''}
-                            onChange={(e) => setEditData(prev => ({ ...prev, mark_lunch_end: e.target.value }))}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                            onChange={(mark_lunch_end) => setEditData(prev => ({ ...prev, mark_lunch_end }))}
+                            className="focus:ring-purple-500"
                           />
                         ) : (
                           <div className="text-lg font-semibold text-purple-600">

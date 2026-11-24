@@ -13,7 +13,7 @@ const buildPreviewLearningUrl = ({ courseId, lessonId, previewSatelliteId }) => 
   params.set('lesson', String(lessonId));
   params.set('preview', '1');
   params.set('previewSatelliteId', String(previewSatelliteId));
-  return `/student/enhanced-learning?${params.toString()}`;
+  return `/student/old-enhanced-learning?${params.toString()}`;
 };
 
 const DisabledFeatureCallout = () => (
