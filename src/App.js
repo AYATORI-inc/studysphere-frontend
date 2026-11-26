@@ -1,11 +1,27 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { AuthProvider } from './components/contexts/AuthContext';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import AdminDashboard from './pages/AdminDashboard';
+import AdminCardDashboard from './pages/AdminCardDashboard';
+import { AdminAdminsPage, AdminSsoGuideRoute, AdminSsoPage } from './pages/AdminSectionPage';
+import AdminCoursesPage from './pages/admin/AdminCoursesPage';
+import AdminCourseDetailPage from './pages/admin/AdminCourseDetailPage';
+import AdminLessonDetailPage from './pages/admin/AdminLessonDetailPage';
+import AdminLessonsPage from './pages/admin/AdminLessonsPage';
+import AdminCurriculumPathsPage from './pages/admin/AdminCurriculumPathsPage';
+import AdminCurriculumPathDetailPage from './pages/admin/AdminCurriculumPathDetailPage';
+import AdminOfficesPage from './pages/admin/AdminOfficesPage';
+import AdminOfficeDetailPage from './pages/admin/AdminOfficeDetailPage';
+import AdminCompaniesPage from './pages/admin/AdminCompaniesPage';
+import AdminCompanySetupPage from './pages/admin/AdminCompanySetupPage';
+import AdminInstructorsPage from './pages/admin/AdminInstructorsPage';
+import AdminInstructorDetailPage from './pages/admin/AdminInstructorDetailPage';
+import AdminSpecificationsPage from './pages/admin/AdminSpecificationsPage';
 import InstructorDashboard from './pages/InstructorDashboard';
 import TmpDashboard from './pages/TmpDashboard';
+import InstructorCoursePreviewPage from './pages/InstructorCoursePreviewPage';
 import StudentLogin from './pages/StudentLogin';
 import StudentDashboard from './pages/StudentDashboard';
 import StudentAccountPage from './pages/StudentAccountPage';
@@ -57,6 +73,11 @@ const TestComponent = () => (
   </div>
 );
 
+const LessonEditRedirect = () => {
+  const { courseId, lessonId } = useParams();
+  return <Navigate to={`/admin/courses/${courseId}/lessons/${lessonId}`} replace />;
+};
+
 function App() {
   // 環境に応じてbasenameを設定
   // const basename = process.env.NODE_ENV === 'production' 
@@ -87,9 +108,29 @@ function App() {
             {/* 管理者・指導員用ログインページ */}
             <Route path="/admin-instructor-login" element={<LoginPage />} />
             {/* 管理者用ダッシュボード */}
-            <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            <Route path="/admin/dashboard" element={<AdminCardDashboard />} />
+            <Route path="/admin/old-dashboard" element={<AdminDashboard />} />
+            <Route path="/admin/locations" element={<AdminOfficesPage />} />
+            <Route path="/admin/locations/:officeId" element={<AdminOfficeDetailPage />} />
+            <Route path="/admin/companies" element={<AdminCompaniesPage />} />
+            <Route path="/admin/companies/new" element={<AdminCompanySetupPage />} />
+            <Route path="/admin/companies/:companyId/setup" element={<AdminCompanySetupPage />} />
+            <Route path="/admin/instructors" element={<AdminInstructorsPage />} />
+            <Route path="/admin/instructors/:instructorId" element={<AdminInstructorDetailPage />} />
+            <Route path="/admin/specifications" element={<AdminSpecificationsPage />} />
+            <Route path="/admin/courses" element={<AdminCoursesPage />} />
+            <Route path="/admin/courses/:courseId/lessons/:lessonId/edit" element={<LessonEditRedirect />} />
+            <Route path="/admin/courses/:courseId/lessons/:lessonId" element={<AdminLessonDetailPage />} />
+            <Route path="/admin/courses/:courseId" element={<AdminCourseDetailPage />} />
+            <Route path="/admin/lessons" element={<AdminLessonsPage />} />
+            <Route path="/admin/curriculum-paths/:pathId" element={<AdminCurriculumPathDetailPage />} />
+            <Route path="/admin/curriculum-paths" element={<AdminCurriculumPathsPage />} />
+            <Route path="/admin/admins" element={<AdminAdminsPage />} />
+            <Route path="/admin/sso/guide" element={<AdminSsoGuideRoute />} />
+            <Route path="/admin/sso" element={<AdminSsoPage />} />
             {/* 指導員用ダッシュボード */}
             <Route path="/instructor/dashboard" element={<TmpDashboard />} />
+            <Route path="/instructor/course-preview" element={<InstructorCoursePreviewPage />} />
             <Route path="/instructor/tmp_dashboard" element={<Navigate to="/instructor/dashboard" replace />} />
             {/* 従来の指導員ダッシュボード */}
             <Route path="/instructor/old-dashboard" element={<InstructorDashboard />} />

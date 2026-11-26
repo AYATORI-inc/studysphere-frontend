@@ -285,12 +285,6 @@ const TmpDashboard = () => {
     }));
   };
 
-  const openDashboardTab = (tab, action) => {
-    const params = new URLSearchParams({ tab });
-    if (action) params.set('action', action);
-    navigate(`/instructor/old-dashboard?${params.toString()}`);
-  };
-
   const openHomeSupport = (tab) => {
     if (localUser?.satellite_id) {
       sessionStorage.setItem('selectedSatellite', JSON.stringify({
@@ -350,7 +344,17 @@ const TmpDashboard = () => {
       return;
     }
     if (actionId === 'courses') {
-      openDashboardTab('learning-preview');
+      if (localUser?.satellite_id) {
+        sessionStorage.setItem('selectedSatellite', JSON.stringify({
+          id: localUser.satellite_id,
+          name: localUser.satellite_name,
+          company_id: localUser.company_id,
+          company_name: localUser.company_name,
+          type: localUser.location?.type || '就労移行支援事業所',
+          organization: localUser.location?.organization || 'スタディスフィア株式会社',
+        }));
+      }
+      window.open('/instructor/course-preview', '_blank', 'noopener,noreferrer');
       return;
     }
     if (actionId === 'job-connect') {

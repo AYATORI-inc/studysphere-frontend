@@ -14,11 +14,8 @@ const LoginPage = () => {
   const [credentials, setCredentials] = useState({ id: '', password: '' });
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [showDashboardSelection, setShowDashboardSelection] = useState(false);
-  const [showCompanySelection, setShowCompanySelection] = useState(false);
   const [showSatelliteSelection, setShowSatelliteSelection] = useState(false);
   const [userData, setUserData] = useState(null);
-  const [companies, setCompanies] = useState([]);
   const [satellites, setSatellites] = useState([]);
   const [selectedCompany, setSelectedCompany] = useState('');
   const [selectedSatellite, setSelectedSatellite] = useState('');
@@ -216,12 +213,27 @@ const LoginPage = () => {
         console.log('Role >= 4:', user.role >= 4);
         console.log('Role >= 6:', user.role >= 6);
         
-        // ロール9以上（システム管理者）の場合はダッシュボード選択を表示
+        // ロール9以上（システム管理者）は管理者ダッシュボードへ直行する
         if (user.role >= 9) {
-          console.log('Showing dashboard selection for role 9+');
-          setUserData(user);
-          setShowDashboardSelection(true);
-          setIsLoading(false);
+          sessionStorage.removeItem('instructorDashboardSelection');
+          const adminUserData = {
+            id: user.user_id,
+            name: user.user_name,
+            email: user.email || '',
+            login_code: user.login_code,
+            role: user.role,
+            password_reset_required: user.password_reset_required || false,
+            access_token: user.access_token,
+            refresh_token: user.refresh_token
+          };
+          login(adminUserData, user.access_token, user.refresh_token);
+          addOperationLog({
+            action: 'ログイン',
+            details: `システム管理者「${user.user_name}」が管理者ダッシュボードでログインしました`,
+            adminId: user.user_id,
+            adminName: user.user_name
+          });
+          navigate('/admin/dashboard');
           return;
         }
         
@@ -405,176 +417,6 @@ const LoginPage = () => {
     }
   };
 
-  const handleDashboardSelection = async (dashboardType) => {
-    console.log('=== handleDashboardSelection Debug ===');
-    console.log('dashboardType:', dashboardType);
-    console.log('userData:', userData);
-    console.log('userData.role:', userData?.role);
-    console.log('userData.role type:', typeof userData?.role);
-    
-    // 指導員ダッシュボード選択時はリダイレクト制御フラグを設定（即座に設定）
-    if (dashboardType === 'instructor') {
-      sessionStorage.setItem('instructorDashboardSelection', 'true');
-      console.log('指導員ダッシュボード選択フラグを設定');
-      
-      // フラグ設定後、少し待ってから処理を続行（ガード処理が確実にスキップされるように）
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-    
-    if (dashboardType === 'admin') {
-      // ロール9以上のユーザーのみ管理者ダッシュボードにアクセス可能
-      if (userData.role < 9) {
-        console.log('User role not authorized for admin dashboard:', userData.role);
-        setError('管理者ダッシュボードへのアクセス権限がありません。');
-        return;
-      }
-      
-      const adminUserData = {
-        id: userData.user_id,
-        name: userData.user_name,
-        email: userData.email || '',
-        login_code: userData.login_code,
-        role: userData.role, // 数値のロールを保持
-        password_reset_required: userData.password_reset_required || false,
-        access_token: userData.access_token,
-        refresh_token: userData.refresh_token
-      };
-      
-      console.log('Logging in admin user:', adminUserData);
-      login(adminUserData, userData.access_token, userData.refresh_token);
-      
-      addOperationLog({
-        action: 'ログイン',
-        details: `システム管理者「${userData.user_name}」が管理者ダッシュボードでログインしました`,
-        adminId: userData.user_id,
-        adminName: userData.user_name
-      });
-      
-      console.log('Navigating to admin dashboard');
-      navigate('/admin/dashboard');
-    } else if (dashboardType === 'instructor') {
-      console.log('=== Instructor Dashboard Selection Debug ===');
-      console.log('User data for instructor selection:', userData);
-      
-      // 企業・拠点情報を取得
-      console.log('Fetching companies data for instructor dashboard selection');
-      const companiesData = await getUserCompaniesAPI(credentials.id);
-      console.log('Companies data response for instructor selection:', companiesData);
-      
-      if (companiesData.success && companiesData.data.companies.length > 0) {
-        console.log('Companies found for instructor selection:', companiesData.data.companies.length);
-        console.log('Setting up company selection screen...');
-        
-        // 管理者が指導員ダッシュボードを選択した場合は企業・拠点選択画面を表示
-        setCompanies(companiesData.data.companies);
-        setShowDashboardSelection(false);
-        setShowCompanySelection(true);
-        setIsLoading(false);
-        console.log('Company selection screen should be displayed now');
-        return;
-      } else {
-        console.log('No companies found for instructor selection, proceeding to instructor dashboard');
-        // 企業・拠点が割り当てられていない場合は直接指導員ダッシュボードへ
-        const instructorData = {
-          id: userData.user_id,
-          name: userData.user_name,
-          email: userData.email || '',
-          login_code: userData.login_code,
-          role: userData.role, // 元のロールを保持（管理者の場合は9のまま）
-          passwordResetRequired: userData.password_reset_required || false,
-          access_token: userData.access_token,
-          refresh_token: userData.refresh_token
-        };
-        
-        login(instructorData, userData.access_token, userData.refresh_token);
-        
-        addOperationLog({
-          action: 'ログイン',
-          details: `指導員「${userData.user_name}」がログインしました`,
-          adminId: userData.user_id,
-          adminName: userData.user_name
-        });
-        
-        // 指導員ダッシュボード選択フラグをクリア
-        sessionStorage.removeItem('instructorDashboardSelection');
-        navigate('/instructor/dashboard');
-      }
-    }
-  };
-
-  const handleCompanySelection = async () => {
-    if (!selectedCompany || !selectedSatellite) {
-      setError('企業と拠点を選択してください');
-      return;
-    }
-
-    setIsLoading(true);
-    setError('');
-
-    try {
-      const instructorData = await instructorLoginAPI(
-        credentials.id, 
-        credentials.password, 
-        selectedCompany, 
-        selectedSatellite
-      );
-
-      if (instructorData.success && instructorData.data) {
-        const user = instructorData.data;
-        const userData = {
-          id: user.user_id,
-          name: user.user_name,
-          email: user.email || '',
-          login_code: user.login_code,
-          role: user.role, // バックエンドから返された実際のロールを使用
-          company_id: user.company_id,
-          company_name: user.company_name,
-          satellite_id: user.satellite_id,
-          satellite_name: user.satellite_name,
-          passwordResetRequired: user.password_reset_required || false,
-          access_token: user.access_token,
-          refresh_token: user.refresh_token
-        };
-        
-        // 全ユーザー共通で拠点・企業情報をセッションストレージに保存
-        const selectedSatelliteInfo = {
-          id: user.satellite_id,
-          name: user.satellite_name,
-          company_id: user.company_id,
-          company_name: user.company_name
-        };
-        sessionStorage.setItem('selectedSatellite', JSON.stringify(selectedSatelliteInfo));
-        console.log('企業選択時ログイン: selectedSatelliteを保存:', selectedSatelliteInfo);
-        
-        // ユーザーデータにも拠点情報を追加
-        userData.satellite_id = user.satellite_id;
-        userData.satellite_ids = [user.satellite_id];
-        userData.satellite_name = user.satellite_name;
-        userData.company_id = user.company_id;
-        userData.company_name = user.company_name;
-        
-        login(userData, user.access_token, user.refresh_token);
-        
-        await addOperationLog({
-          action: 'ログイン',
-          details: `指導員「${user.user_name}」が${user.company_name}の${user.satellite_name}でログインしました`,
-          adminId: user.user_id,
-          adminName: user.user_name
-        });
-        
-        // 指導員ダッシュボード選択フラグをクリア
-        sessionStorage.removeItem('instructorDashboardSelection');
-        navigate('/instructor/dashboard');
-      } else {
-        throw new Error(instructorData.message || '指導員ログインに失敗しました');
-      }
-    } catch (error) {
-      setError(error.message || '指導員ログイン処理中にエラーが発生しました');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleSatelliteSelection = async () => {
     if (!selectedSatellite) {
       setError('拠点を選択してください');
@@ -690,54 +532,12 @@ const LoginPage = () => {
   };
 
   const handleBackToLogin = () => {
-    setShowDashboardSelection(false);
-    setShowCompanySelection(false);
     setShowSatelliteSelection(false);
     setUserData(null);
-    setCompanies([]);
     setSelectedCompany('');
     setSelectedSatellite('');
     setError('');
   };
-
-  // ダッシュボード選択画面
-  if (showDashboardSelection) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-500 via-purple-500 to-purple-600 flex items-center justify-center p-5">
-        <div className="bg-white rounded-2xl p-8 shadow-2xl w-full max-w-md">
-          <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold text-indigo-600 mb-2">Study Sphere</h1>
-            <h2 className="text-2xl font-semibold text-gray-800 mb-2">ダッシュボード選択</h2>
-            <p className="text-gray-600">ログインするダッシュボードを選択してください</p>
-          </div>
-
-          <div className="space-y-4">
-            {/* ロール9以上のユーザーのみ管理者ダッシュボードを表示 */}
-            {userData && userData.role >= 9 && (
-              <button
-                onClick={() => handleDashboardSelection('admin')}
-                className="w-full bg-gradient-to-r from-red-500 to-red-400 text-white py-3 px-4 rounded-lg hover:from-red-600 hover:to-red-500 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-              >
-                🏢 管理者ダッシュボード
-              </button>
-            )}
-            <button
-              onClick={() => handleDashboardSelection('instructor')}
-              className="w-full bg-gradient-to-r from-indigo-600 to-purple-700 text-white py-3 px-4 rounded-lg hover:from-indigo-700 hover:to-purple-800 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-            >
-              👨‍🏫 指導員ダッシュボード
-            </button>
-            <button
-              onClick={handleBackToLogin}
-              className="w-full bg-gray-500 text-white py-3 px-4 rounded-lg hover:bg-gray-600 transition-colors"
-            >
-              ← 戻る
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
       // 拠点選択画面（指導員用）
   if (showSatelliteSelection) {
@@ -779,90 +579,6 @@ const LoginPage = () => {
               onClick={handleSatelliteSelection}
               disabled={isLoading || !selectedSatellite}
               className="w-full bg-gradient-to-r from-indigo-600 to-purple-700 text-white py-3 px-4 rounded-lg hover:from-indigo-700 hover:to-purple-800 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isLoading ? 'ログイン中...' : 'ログイン'}
-            </button>
-
-            <button
-              onClick={handleBackToLogin}
-              className="w-full bg-gray-500 text-white py-3 px-4 rounded-lg hover:bg-gray-600 transition-colors"
-            >
-              ← 戻る
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // 企業・拠点選択画面（管理者用）
-  console.log('Render check - showCompanySelection:', showCompanySelection);
-  console.log('Render check - companies:', companies);
-  if (showCompanySelection) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-500 via-purple-500 to-purple-600 flex items-center justify-center p-5">
-        <div className="bg-white rounded-2xl p-8 shadow-2xl w-full max-w-md">
-          <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold text-indigo-600 mb-2">Study Sphere</h1>
-            <h2 className="text-2xl font-semibold text-gray-800 mb-2">企業・拠点選択</h2>
-            <p className="text-gray-600">ログインする企業と拠点を選択してください</p>
-          </div>
-
-          {error && (
-            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
-              <div style={{ whiteSpace: 'pre-line' }}>
-                {error}
-              </div>
-            </div>
-          )}
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                企業
-              </label>
-              <select
-                value={selectedCompany}
-                onChange={(e) => {
-                  setSelectedCompany(e.target.value);
-                  setSelectedSatellite('');
-                }}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              >
-                <option value="">企業を選択してください</option>
-                {companies.map(company => (
-                  <option key={company.id} value={company.id}>
-                    {company.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                拠点
-              </label>
-              <select
-                value={selectedSatellite}
-                onChange={(e) => setSelectedSatellite(e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                disabled={!selectedCompany}
-              >
-                <option value="">拠点を選択してください</option>
-                {selectedCompany && companies
-                  .find(c => c.id === parseInt(selectedCompany))
-                  ?.satellites.map(satellite => (
-                    <option key={satellite.id} value={satellite.id}>
-                      {satellite.name} {satellite.isManager ? '(管理者)' : ''}
-                    </option>
-                  ))}
-              </select>
-            </div>
-
-            <button
-              onClick={handleCompanySelection}
-              disabled={isLoading || !selectedCompany || !selectedSatellite}
-              className="w-full bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
               {isLoading ? 'ログイン中...' : 'ログイン'}
             </button>

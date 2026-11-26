@@ -73,8 +73,8 @@ export const useAuthGuard = () => {
         return;
       }
       
-      // 指導員（ロール4-8）が管理者ダッシュボードにアクセスしている場合はリダイレクト
-      if (role >= 4 && role <= 8 && pathname.startsWith('/admin/dashboard')) {
+      // 指導員（ロール4-8）が管理者画面にアクセスしている場合はリダイレクト
+      if (role >= 4 && role <= 8 && pathname.startsWith('/admin/')) {
         console.log('Instructor user accessing admin dashboard - redirecting to instructor dashboard');
         navigate('/instructor/dashboard');
         return;
@@ -193,12 +193,12 @@ export const useInstructorGuard = () => {
 };
 
 // 利用者専用ページ用のガード
-export const useStudentGuard = () => {
+export const useStudentGuard = ({ allowPreview = false } = {}) => {
   const { isAuthenticated, isLoading, currentUser } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (isLoading) return;
+    if (allowPreview || isLoading) return;
 
     if (!isAuthenticated) {
       navigate('/homepage');
@@ -209,7 +209,7 @@ export const useStudentGuard = () => {
       navigate('/homepage');
       return;
     }
-  }, [isAuthenticated, isLoading, currentUser, navigate]);
+  }, [allowPreview, isAuthenticated, isLoading, currentUser, navigate]);
 
   return { isAuthenticated, isLoading, currentUser };
 }; 

@@ -103,7 +103,7 @@ export function isStudentColorPath(pathname) {
   if (/\/instructor\/student(?:\/|$|-)/.test(pathname)) {
     return false;
   }
-  return /\/student(?:\/|$)|\/student-login(?:\/|$)/.test(pathname);
+  return /\/student(?:\/|$)|\/student-login(?:\/|$)|\/instructor\/course-preview(?:\/|$)/.test(pathname);
 }
 
 export function applyStudentColorMode(mode) {

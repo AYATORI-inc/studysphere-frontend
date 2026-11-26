@@ -33,10 +33,12 @@ const sectionLabel = (section) => {
   return file.replace(/\.md$/i, '').trim();
 };
 
-const StudentLearningPage = () => {
+const StudentLearningPage = ({ preview = false }) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { currentUser } = useStudentGuard();
+  const { currentUser } = useStudentGuard({ allowPreview: preview });
+  const homePath = preview ? '/instructor/course-preview' : '/student/dashboard';
+  const learningPath = preview ? '/instructor/course-preview' : '/student/enhanced-learning';
   const { logout } = useAuth();
   const courseId = searchParams.get('course');
   const lessonId = searchParams.get('lesson');
@@ -69,19 +71,37 @@ const StudentLearningPage = () => {
       try {
         setLoading(true);
         setError(null);
+        const courseRequest = preview
+          ? fetch(`${API_BASE_URL}/api/courses/${courseId}`, { headers: authHeaders() })
+          : fetchStudentCourses();
+        const lessonRequest = preview
+          ? Promise.resolve(null)
+          : fetchStudentLessons(courseId);
         const [coursesResponse, lessonsResponse, sectionsResponse, currentResponse] = await Promise.all([
-          fetchStudentCourses(),
-          fetchStudentLessons(courseId),
+          courseRequest,
+          lessonRequest,
           fetch(`${API_BASE_URL}/api/lesson-text-video-links/lesson/${lessonId}`, { headers: authHeaders() }),
-          fetch(`${API_BASE_URL}/api/learning/current-lesson?courseId=${courseId}`, { headers: authHeaders() }),
+          preview
+            ? Promise.resolve(null)
+            : fetch(`${API_BASE_URL}/api/learning/current-lesson?courseId=${courseId}`, { headers: authHeaders() }),
         ]);
-        const enrolled = coursesResponse?.success ? (coursesResponse.data || []) : [];
-        const foundCourse = enrolled.find((item) => Number(item.id) === Number(courseId)) || null;
-        const lessonList = lessonsResponse?.success ? (lessonsResponse.data || []) : [];
-        const foundLesson = lessonList.find((item) => Number(item.id) === Number(lessonId)) || null;
+        let foundCourse = null;
+        let foundLesson = null;
+        if (preview) {
+          const courseJson = coursesResponse.ok ? await coursesResponse.json() : {};
+          const courseData = courseJson.data || {};
+          foundCourse = courseData.id ? { id: courseData.id, title: courseData.title } : null;
+          const lessonList = Array.isArray(courseData.lessons) ? courseData.lessons : [];
+          foundLesson = lessonList.find((item) => Number(item.id) === Number(lessonId)) || null;
+        } else {
+          const enrolled = coursesResponse?.success ? (coursesResponse.data || []) : [];
+          foundCourse = enrolled.find((item) => Number(item.id) === Number(courseId)) || null;
+          const lessonList = lessonsResponse?.success ? (lessonsResponse.data || []) : [];
+          foundLesson = lessonList.find((item) => Number(item.id) === Number(lessonId)) || null;
+        }
         const sectionData = sectionsResponse.ok ? await sectionsResponse.json() : { data: [] };
         let resumeFile = '';
-        if (currentResponse.ok) {
+        if (!preview && currentResponse?.ok) {
           const currentData = await currentResponse.json();
           const rows = Array.isArray(currentData.data) ? currentData.data : [];
           const resume = rows.find((item) => Number(item.lesson_id) === Number(lessonId));
@@ -120,21 +140,29 @@ const StudentLearningPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [currentUser?.id, courseId, lessonId]);
+  }, [currentUser?.id, courseId, lessonId, preview]);
 
   const selectSection = (index) => {
     setSelectedIndex(index);
     const params = new URLSearchParams(searchParams);
     params.set('section', String(index));
-    navigate(`/student/enhanced-learning?${params.toString()}`, { replace: true });
+    navigate(`${learningPath}?${params.toString()}`, { replace: true });
   };
 
   const openSectionTest = (index) => {
+    if (preview) {
+      window.alert('プレビューではテストの実施はできません。');
+      return;
+    }
     sessionStorage.removeItem(`test_data_${lessonId}_${index}`);
     navigate(`/student/section-test?lesson=${lessonId}&section=${index}`);
   };
 
   const openLessonTest = () => {
+    if (preview) {
+      window.alert('プレビューではテストの実施はできません。');
+      return;
+    }
     sessionStorage.removeItem(`test_data_lesson_${lessonId}`);
     navigate(`/student/lesson-test?lesson=${lessonId}`);
   };
@@ -183,6 +211,10 @@ const StudentLearningPage = () => {
   }, [viewMode, selectedSection]);
 
   const askAi = async () => {
+    if (preview) {
+      window.alert('プレビューではAIへの質問はできません。');
+      return;
+    }
     const question = aiInput.trim();
     if (!question || aiLoading) return;
     setAiInput('');
@@ -199,6 +231,10 @@ const StudentLearningPage = () => {
   };
 
   const openAssignment = () => {
+    if (preview) {
+      window.alert('プレビューでは課題の提出はできません。');
+      return;
+    }
     if (!lesson?.has_assignment) {
       window.alert('このレッスンに課題はありません。');
       return;
@@ -262,7 +298,7 @@ const StudentLearningPage = () => {
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-white">
-                <Link to="/student/dashboard" className="hover:underline" title="ダッシュボードへ戻る">
+                <Link to={homePath} className="hover:underline" title="ダッシュボードへ戻る">
                   Study Sphere
                 </Link>
               </h1>
@@ -272,18 +308,20 @@ const StudentLearningPage = () => {
               <button
                 type="button"
                 className="px-3 py-1.5 rounded-lg font-medium text-white bg-white/15 hover:bg-white/25 transition-colors"
-                onClick={() => navigate('/student/account')}
-                title="アカウント情報"
+                onClick={() => {
+                  if (!preview) navigate('/student/account');
+                }}
+                title={preview ? '閲覧用ユーザー' : 'アカウント情報'}
               >
-                {currentUser.name}さん
+                {preview ? '閲覧用ユーザー' : currentUser.name}さん
               </button>
               <button
                 type="button"
                 className="px-3 py-1.5 rounded-lg font-medium text-white bg-white/15 hover:bg-white/25 transition-colors"
-                onClick={handleLogout}
-                title="ログアウト"
+                onClick={preview ? () => navigate('/instructor/dashboard') : handleLogout}
+                title={preview ? 'スタッフ画面へ戻る' : 'ログアウト'}
               >
-                ログアウト
+                {preview ? 'スタッフ画面へ戻る' : 'ログアウト'}
               </button>
             </div>
           </div>
