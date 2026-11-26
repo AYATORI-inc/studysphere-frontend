@@ -840,24 +840,9 @@ const MonthlyEvaluationHistoryPage = () => {
     <div className="flex flex-col min-h-screen bg-gray-50">
       {/* ヘッダー（印刷時は非表示） */}
       <div className="print:hidden">
-        <InstructorHeader 
-          user={localUser || currentUser} 
+        <InstructorHeader
+          user={localUser || currentUser}
           onLocationChange={handleLocationChange}
-          showBackButton={true}
-          backButtonText="在宅支援ダッシュボードに戻る"
-          onBackClick={() => {
-            // 戻る前に現在の拠点情報を保存
-            if (localUser) {
-              const currentLocation = {
-                id: localUser.satellite_id,
-                name: localUser.satellite_name,
-                company_id: localUser.company_id,
-                company_name: localUser.company_name
-              };
-              sessionStorage.setItem('selectedSatellite', JSON.stringify(currentLocation));
-            }
-            navigate('/instructor/home-support');
-          }}
         />
       </div>
 

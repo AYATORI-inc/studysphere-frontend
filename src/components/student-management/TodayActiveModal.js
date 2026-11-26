@@ -6,10 +6,10 @@ import { useAuth } from '../contexts/AuthContext';
 const TodayActiveModal = ({ 
   isOpen, 
   onClose, 
-  students, 
-  selectedStudents, 
   onStudentsUpdate,
-  onSelectStudents 
+  selectedStudents,
+  onSelectStudents,
+  asPage = false,
 }) => {
   const { currentUser } = useAuth();
   // 基本状態管理
@@ -71,19 +71,21 @@ const TodayActiveModal = ({
   };
 
   
+  const open = asPage || isOpen;
+
   // モーダルが開かれた時の初期化
   useEffect(() => {
-    if (isOpen) {
+    if (open) {
       initializeModal();
     }
-  }, [isOpen]);
+  }, [open]);
 
   // selectedInstructorsが変更された時に一時パスワード対象利用者を再取得
   useEffect(() => {
-    if (isOpen) {
+    if (open) {
       fetchTempPasswordUsers();
     }
-  }, [selectedInstructors, isOpen]);
+  }, [selectedInstructors, open]);
 
   // モーダル初期化
   const initializeModal = async () => {
@@ -243,11 +245,19 @@ const TodayActiveModal = ({
       if (response.success) {
         alert(`${selectedStudents.length}名の利用者に一時パスワードを発行しました。`);
         
-        // 利用者一覧を更新
-        onStudentsUpdate();
-        
-        // モーダルを閉じて状態をリセット
-        handleClose();
+        if (onStudentsUpdate) {
+          onStudentsUpdate();
+        }
+
+        if (asPage) {
+          setExpiryTime('');
+          setExpiryTimeError('');
+          setAnnouncementTitle('');
+          setAnnouncementMessage('');
+          await fetchTempPasswordUsers();
+        } else {
+          handleClose();
+        }
       } else {
         alert('一時パスワードの発行に失敗しました。');
       }
@@ -269,7 +279,7 @@ const TodayActiveModal = ({
     setAnnouncementMessage('');
     // 選択された指導員の状態は保持する（ユーザビリティ向上のため）
     // setSelectedInstructors([]);
-    onClose();
+    onClose?.();
   };
 
   // 全選択/全解除
@@ -298,59 +308,12 @@ const TodayActiveModal = ({
     setSelectedInstructors(newSelected);
   };
 
-  if (!isOpen) return null;
+  if (!open) return null;
 
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-gray-200">
-                     <div className="flex items-center justify-between">
-             <h3 className="text-2xl font-bold text-gray-800">
-               🔑 本日有効 - 一時パスワード発行
-             </h3>
-            <button 
-              className="text-gray-400 hover:text-gray-600 text-2xl font-bold w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-all duration-200"
-              onClick={handleClose}
-            >
-              ×
-            </button>
-          </div>
-        </div>
-        
-                          <div className="p-6 space-y-8">
-             <>
-                               {/* 別担当者選択 */}
-                <div className="bg-white p-6 rounded-lg shadow">
-                  <h4 className="text-lg font-semibold mb-4">別担当者選択（オプション）</h4>
-                                     <div className="flex flex-wrap gap-3 max-h-48 overflow-y-auto">
-                     {instructors.map((instructor, index) => (
-                       <button
-                         key={`instructor-${instructor.id}-${index}`}
-                         onClick={() => toggleInstructorSelection(instructor.id)}
-                         className={`px-4 py-2 rounded-lg border transition-all duration-200 min-w-0 flex-1 basis-64 text-left ${
-                           selectedInstructors.includes(instructor.id)
-                             ? 'bg-blue-500 text-white border-blue-500 hover:bg-blue-600'
-                             : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:border-gray-400'
-                         }`}
-                       >
-                         <div className="font-medium truncate">{instructor.name}</div>
-                         <div className={`text-sm truncate ${
-                           selectedInstructors.includes(instructor.id)
-                             ? 'text-blue-100'
-                             : 'text-gray-600'
-                         }`}>
-                           {instructor.company_name} {instructor.satellite_name ? `/ ${instructor.satellite_name}` : ''}
-                         </div>
-                       </button>
-                     ))}
-                   </div>
-                  <p className="text-sm text-gray-600 mt-2">
-                    選択すると、その指導員のパスワード未発行担当利用者もリストに追加されます
-                  </p>
-                </div>
-
-              {/* 利用者選択 */}
-              <div className="bg-white p-6 rounded-lg shadow">
+  const body = (
+    <>
+      <div className="space-y-4 p-6">
+              <div className="rounded-lg bg-white p-6 shadow">
                 <div className="flex justify-between items-center mb-4">
                   <h4 className="text-lg font-semibold">利用者選択</h4>
                   <button
@@ -392,9 +355,42 @@ const TodayActiveModal = ({
                 )}
               </div>
 
-              {/* 有効期限設定 */}
-              <div className="bg-white p-6 rounded-lg shadow">
-                <h4 className="text-lg font-semibold mb-4">有効期限設定（オプション）</h4>
+              <details className="rounded-lg bg-white shadow">
+                <summary className="cursor-pointer list-none px-6 py-4 text-lg font-semibold text-gray-800 [&::-webkit-details-marker]:hidden">
+                  別担当者選択（オプション）
+                </summary>
+                <div className="px-6 pb-6">
+                  <div className="flex max-h-48 flex-wrap gap-3 overflow-y-auto">
+                    {instructors.map((instructor, index) => (
+                      <button
+                        key={`instructor-${instructor.id}-${index}`}
+                        onClick={() => toggleInstructorSelection(instructor.id)}
+                        className={`min-w-0 flex-1 basis-64 rounded-lg border px-4 py-2 text-left transition-all duration-200 ${
+                          selectedInstructors.includes(instructor.id)
+                            ? 'border-blue-500 bg-blue-500 text-white hover:bg-blue-600'
+                            : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400 hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className="truncate font-medium">{instructor.name}</div>
+                        <div className={`truncate text-sm ${
+                          selectedInstructors.includes(instructor.id) ? 'text-blue-100' : 'text-gray-600'
+                        }`}>
+                          {instructor.company_name} {instructor.satellite_name ? `/ ${instructor.satellite_name}` : ''}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-sm text-gray-600">
+                    選択すると、その指導員のパスワード未発行担当利用者もリストに追加されます
+                  </p>
+                </div>
+              </details>
+
+              <details className="rounded-lg bg-white shadow">
+                <summary className="cursor-pointer list-none px-6 py-4 text-lg font-semibold text-gray-800 [&::-webkit-details-marker]:hidden">
+                  パスワード有効期限設定（オプション）
+                </summary>
+                <div className="px-6 pb-6">
                 <div className="flex items-center space-x-4">
                   <input
                     type="text"
@@ -416,11 +412,14 @@ const TodayActiveModal = ({
                 <p className="text-sm text-gray-600 mt-2">
                   指定なしの場合は日本時間23:59まで有効です（HH:MM形式で入力してください。現在時刻より後の時間を選択してください）
                 </p>
-              </div>
+                </div>
+              </details>
 
-              {/* アナウンスメッセージ */}
-              <div className="bg-white p-6 rounded-lg shadow">
-                <h4 className="text-lg font-semibold mb-4">アナウンスメッセージ（オプション）</h4>
+              <details className="rounded-lg bg-white shadow">
+                <summary className="cursor-pointer list-none px-6 py-4 text-lg font-semibold text-gray-800 [&::-webkit-details-marker]:hidden">
+                  アナウンスメッセージ（オプション）
+                </summary>
+                <div className="px-6 pb-6">
                 <input
                   type="text"
                   value={announcementTitle}
@@ -438,19 +437,20 @@ const TodayActiveModal = ({
                 <p className="text-sm text-gray-600 mt-2">
                   選択された利用者のダッシュボードで閲覧できるアナウンスメッセージを一括送信します
                 </p>
-              </div>
-                         </>
+                </div>
+              </details>
 
-          {/* アクションボタン */}
-          <div className="flex gap-4 pt-6 border-t border-gray-200">
-            <button 
-              className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-all duration-200"
-              onClick={handleClose}
-            >
-              キャンセル
-            </button>
-                         <button 
-               className="flex-1 px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200"
+          <div className="flex items-center justify-end gap-4 border-t border-gray-200 pt-6">
+            {!asPage && (
+              <button
+                className="mr-auto px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-all duration-200"
+                onClick={handleClose}
+              >
+                キャンセル
+              </button>
+            )}
+                         <button
+               className="px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 disabled:transform-none disabled:cursor-not-allowed disabled:opacity-50"
                onClick={sendTodayActiveEmails}
                disabled={tempPasswordLoading || selectedStudents.length === 0}
              >
@@ -461,6 +461,34 @@ const TodayActiveModal = ({
              </button>
           </div>
         </div>
+    </>
+  );
+
+  if (asPage) {
+    return (
+      <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+        {body}
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <h3 className="text-2xl font-bold text-gray-800">
+              🔑 本日有効 - 一時パスワード発行
+            </h3>
+            <button
+              className="text-gray-400 hover:text-gray-600 text-2xl font-bold w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-all duration-200"
+              onClick={handleClose}
+            >
+              ×
+            </button>
+          </div>
+        </div>
+        {body}
       </div>
     </div>
   );

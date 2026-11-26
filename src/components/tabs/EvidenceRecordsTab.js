@@ -2,10 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { getCaptureRecords, getSatelliteHomeSupportUsers } from '../../utils/api';
 import { getCurrentUser } from '../../utils/userContext';
 import { API_BASE_URL } from '../../config/apiConfig';
+import { formatJapanTimeOfInstant } from '../../utils/dateUtils';
 
 const EvidenceRecordsTab = ({ 
   handleUserInputClick, 
-  handleUserDetailClick 
+  handleUserDetailClick,
+  showHeading = true,
+  textOnly = false,
 }) => {
   // 初期値としてsessionStorageから拠点IDを取得
   const getInitialSatelliteId = () => {
@@ -121,7 +124,15 @@ const EvidenceRecordsTab = ({
         }
         
         console.log('EvidenceRecordsTab: 記録を取得します - satelliteId:', currentSatelliteId);
-        const response = await getCaptureRecords(selectedUserId || null, startDate || null, endDate || null, currentSatelliteId || null);
+        const response = await getCaptureRecords(
+          selectedUserId || null,
+          startDate || null,
+          endDate || null,
+          currentSatelliteId || null,
+          1,
+          20,
+          textOnly
+        );
         
         if (response.success && response.data) {
           setRecords(response.data.records || []);
@@ -179,7 +190,7 @@ const EvidenceRecordsTab = ({
     };
 
     fetchRecords();
-  }, [selectedUserId, startDate, endDate, currentSatelliteId]);
+  }, [selectedUserId, startDate, endDate, currentSatelliteId, textOnly]);
 
 
   // 状況を判定する関数
@@ -213,10 +224,12 @@ const EvidenceRecordsTab = ({
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">📷 記録・証拠</h2>
-          <p className="text-lg text-gray-600">デスクトップ画面とカメラで学習状況を記録・管理</p>
-        </div>
+        {showHeading && (
+          <div className="mb-6">
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">📷 記録・証拠</h2>
+            <p className="text-lg text-gray-600">デスクトップ画面とカメラで学習状況を記録・管理</p>
+          </div>
+        )}
 
         {/* 検索・フィルター機能 */}
         <div className="bg-gray-50 rounded-xl p-4 mb-6">
@@ -272,7 +285,7 @@ const EvidenceRecordsTab = ({
                     利用者
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    サムネイル
+                    {textOnly ? '記録' : 'サムネイル'}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     状況
@@ -311,7 +324,10 @@ const EvidenceRecordsTab = ({
                   records.map((record, index) => {
                     const date = new Date(record.date);
                     const time = record.thumbnail ? new Date(record.thumbnail.lastModified) : date;
+                    const summaryTime = formatJapanTimeOfInstant(record.latestAt);
                     const thumbnailType = record.thumbnail?.type === 'camera' ? '📷' : '🖥️';
+                    const photoCount = record.photoCount ?? (record.photos || []).length;
+                    const screenshotCount = record.screenshotCount ?? (record.screenshots || []).length;
                     const statusText = getStatusText(record);
                     
                     // サムネイルを取得（複数対応）
@@ -324,14 +340,22 @@ const EvidenceRecordsTab = ({
                             {date.toLocaleDateString('ja-JP')}
                           </div>
                           <div className="text-sm text-gray-500">
-                            {time.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
+                            {textOnly && summaryTime
+                              ? summaryTime
+                              : time.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm font-medium text-gray-900">{record.user.name}</div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          {thumbnails.length > 0 ? (
+                          {textOnly ? (
+                            <div className="text-sm text-gray-900">
+                              カメラ {photoCount}枚
+                              <span className="mx-1 text-gray-400">/</span>
+                              画面 {screenshotCount}枚
+                            </div>
+                          ) : thumbnails.length > 0 ? (
                             <div className="flex gap-1">
                               {thumbnails.map((thumb, idx) => {
                                 // 撮影時刻を日本時間でフォーマット
@@ -416,7 +440,7 @@ const EvidenceRecordsTab = ({
                               })}
                               className="text-white text-sm px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 transition-colors duration-200"
                             >
-                              写真
+                              {textOnly ? '詳細' : '写真'}
                             </button>
                           </div>
                         </td>

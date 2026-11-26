@@ -1,10 +1,73 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useInstructorGuard } from '../utils/hooks/useAuthGuard';
+import InstructorHeader from '../components/InstructorHeader';
 import { API_BASE_URL } from '../config/apiConfig';
 import { getCurrentUserSatelliteId, normalizeSatelliteId } from '../utils/locationUtils';
 import { getCurrentUser } from '../utils/userContext';
 import { apiCall } from '../utils/api';
+import { downloadHomeSupportExcel } from '../utils/homeSupportRecordExcel';
+
+const JAPAN_WEEKDAY_INDEX = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+
+const japanDateParts = (date) => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    weekday: 'short',
+  }).formatToParts(date);
+  return {
+    year: Number(parts.find((part) => part.type === 'year')?.value),
+    month: Number(parts.find((part) => part.type === 'month')?.value),
+    day: Number(parts.find((part) => part.type === 'day')?.value),
+    weekday: JAPAN_WEEKDAY_INDEX[parts.find((part) => part.type === 'weekday')?.value],
+  };
+};
+
+const shiftJapanDate = (year, month, day, delta) => {
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + delta);
+  return {
+    year: date.getUTCFullYear(),
+    month: date.getUTCMonth() + 1,
+    day: date.getUTCDate(),
+  };
+};
+
+const toDateKey = ({ year, month, day }) => (
+  `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+);
+
+const defaultWeeklyPeriod = (now = new Date()) => {
+  const today = japanDateParts(now);
+  const daysFromMonday = (today.weekday + 6) % 7;
+  let monday = shiftJapanDate(today.year, today.month, today.day, -daysFromMonday);
+  if (today.weekday === 1) {
+    monday = shiftJapanDate(monday.year, monday.month, monday.day, -7);
+  }
+  const saturday = shiftJapanDate(monday.year, monday.month, monday.day, 5);
+  return { start: toDateKey(monday), end: toDateKey(saturday) };
+};
+
+const dateInputValue = (value) => {
+  if (!value) return '';
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10);
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(parsed);
+  const year = parts.find((part) => part.type === 'year')?.value;
+  const month = parts.find((part) => part.type === 'month')?.value;
+  const day = parts.find((part) => part.type === 'day')?.value;
+  if (!year || !month || !day) return '';
+  return `${year}-${month}-${day}`;
+};
 
 /**
  * 評価(週次)作成画面
@@ -13,9 +76,60 @@ import { apiCall } from '../utils/api';
  */
 const WeeklyEvaluationPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { studentId } = useParams();
   const [searchParams] = useSearchParams();
+  const evaluationId = searchParams.get('evaluationId') || '';
+  const isEdit = evaluationId !== '';
   const { currentUser } = useInstructorGuard();
+  const [localUser, setLocalUser] = useState(null);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const savedSatellite = sessionStorage.getItem('selectedSatellite');
+    let locationToUse = null;
+    if (savedSatellite) {
+      try {
+        const parsed = JSON.parse(savedSatellite);
+        if (parsed?.id) locationToUse = parsed;
+      } catch (parseError) {
+        console.error('評価(週次): 拠点情報のパースエラー:', parseError);
+      }
+    }
+    if (!locationToUse && currentUser.satellite_id) {
+      locationToUse = {
+        id: currentUser.satellite_id,
+        name: currentUser.satellite_name,
+        company_id: currentUser.company_id,
+        company_name: currentUser.company_name,
+      };
+    }
+    setLocalUser({
+      ...currentUser,
+      location: locationToUse,
+      satellite_id: locationToUse?.id || currentUser.satellite_id,
+      satellite_name: locationToUse?.name || currentUser.satellite_name,
+      company_id: locationToUse?.company_id || currentUser.company_id,
+      company_name: locationToUse?.company_name || currentUser.company_name,
+    });
+  }, [currentUser]);
+
+  const handleLocationChange = (newLocation) => {
+    sessionStorage.setItem('selectedSatellite', JSON.stringify(newLocation));
+    const updatedUser = {
+      ...localUser,
+      satellite_id: newLocation.id,
+      satellite_name: newLocation.name,
+      company_id: newLocation.company_id,
+      company_name: newLocation.company_name,
+      location: newLocation,
+    };
+    setLocalUser(updatedUser);
+    localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+    window.dispatchEvent(new CustomEvent('satelliteChanged', {
+      detail: { newLocation },
+    }));
+  };
   
   // 戻る際に拠点情報を保存する関数
   const saveLocationAndNavigate = () => {
@@ -61,6 +175,9 @@ const WeeklyEvaluationPage = () => {
   });
   
   const [isGenerating, setIsGenerating] = useState(false);
+  const [evaluationDate, setEvaluationDate] = useState('');
+  const [excelDownloading, setExcelDownloading] = useState(false);
+  const [editReady, setEditReady] = useState(!isEdit);
   
   // 指導員リスト
   const [instructors, setInstructors] = useState([]);
@@ -73,27 +190,74 @@ const WeeklyEvaluationPage = () => {
   }, [studentId]);
 
   useEffect(() => {
-    // URLパラメータから期間を取得、なければ昨日の1週間前～昨日を設定
     const start = searchParams.get('start');
     const end = searchParams.get('end');
-    
+
+    if (searchParams.get('evaluationId')) {
+      if (start) setPeriodStart(start);
+      if (end) setPeriodEnd(end);
+      return;
+    }
+
     if (start && end) {
       setPeriodStart(start);
       setPeriodEnd(end);
     } else {
-      // 昨日の1週間前～昨日の期間を自動設定
-      const today = new Date();
-      const yesterday = new Date(today);
-      yesterday.setDate(today.getDate() - 1);
-      const weekAgo = new Date(yesterday);
-      weekAgo.setDate(yesterday.getDate() - 6); // 7日前（1週間前）
-      
-      setPeriodStart(weekAgo.toISOString().split('T')[0]);
-      setPeriodEnd(yesterday.toISOString().split('T')[0]);
+      const period = defaultWeeklyPeriod();
+      setPeriodStart(period.start);
+      setPeriodEnd(period.end);
     }
 
     // 生徒情報と前回評価日は別途取得
   }, [studentId, searchParams]);
+
+  useEffect(() => {
+    if (!isEdit || !studentId) return undefined;
+    const applyWeeklyRecord = (record) => {
+      const start = dateInputValue(record.period_start);
+      const end = dateInputValue(record.period_end);
+      if (start) setPeriodStart(start);
+      if (end) setPeriodEnd(end);
+      setPrevEvalDate(dateInputValue(record.prev_eval_date));
+      setEvaluationDate(dateInputValue(record.date) || end);
+      setEvaluationData({
+        method: record.evaluation_method || '通所',
+        methodOther: record.method_other || '',
+        content: record.evaluation_content || '',
+        recorder: record.recorder_name || '',
+        confirmer: record.confirm_name || '',
+      });
+    };
+
+    const stateRecord = location.state?.weeklyRecord;
+    if (stateRecord && String(stateRecord.id) === String(evaluationId)) {
+      applyWeeklyRecord(stateRecord);
+      setEditReady(true);
+    }
+
+    let cancelled = false;
+    const loadEvaluation = async () => {
+      const start = searchParams.get('start');
+      const end = searchParams.get('end');
+      const ranged = start && end
+        ? `/api/weekly-evaluations/user/${studentId}?periodStart=${start}&periodEnd=${end}`
+        : `/api/weekly-evaluations/user/${studentId}`;
+      try {
+        const response = await apiCall(ranged, { method: 'GET' });
+        const list = Array.isArray(response?.data) ? response.data : [];
+        const found = list.find((item) => String(item.id) === String(evaluationId));
+        if (!cancelled && found) applyWeeklyRecord(found);
+      } catch (error) {
+        console.error('週次評価の読み込みエラー:', error);
+      } finally {
+        if (!cancelled) setEditReady(true);
+      }
+    };
+    loadEvaluation();
+    return () => {
+      cancelled = true;
+    };
+  }, [isEdit, studentId, evaluationId, searchParams, location.state]);
 
   useEffect(() => {
     if (periodStart && periodEnd && studentId) {
@@ -236,6 +400,8 @@ const WeeklyEvaluationPage = () => {
       if (data.success) {
         setStudent(data.data);
       }
+
+      if (searchParams.get('evaluationId')) return;
 
       // 前回評価日を取得
       const prevEvalResponse = await fetch(`${API_BASE_URL}/api/weekly-evaluations/user/${studentId}/last-evaluation-date`, {
@@ -417,8 +583,7 @@ const WeeklyEvaluationPage = () => {
       const currentSatelliteId = getCurrentUserSatelliteId(currentUser);
       
       const requestBody = {
-        user_id: student.id,
-        date: new Date().toISOString().split('T')[0],
+        date: isEdit ? (evaluationDate || periodEnd) : new Date().toISOString().split('T')[0],
         prev_eval_date: prevEvalDate && prevEvalDate.trim() !== '' ? prevEvalDate : null, // 空文字列の場合はnullに変換
         period_start: periodStart,
         period_end: periodEnd,
@@ -428,9 +593,13 @@ const WeeklyEvaluationPage = () => {
         recorder_name: evaluationData.recorder,
         confirm_name: evaluationData.confirmer
       };
+
+      if (!isEdit) {
+        requestBody.user_id = student.id;
+      }
       
       // 現在選択中の拠点IDがある場合は追加
-      if (currentSatelliteId) {
+      if (!isEdit && currentSatelliteId) {
         requestBody.satellite_id = currentSatelliteId;
         console.log('週報保存 - 送信データにsatellite_idを追加:', {
           satellite_id: currentSatelliteId,
@@ -438,7 +607,7 @@ const WeeklyEvaluationPage = () => {
           user_id: student.id,
           requestBody
         });
-      } else {
+      } else if (!isEdit) {
         console.warn('週報保存 - satellite_idが取得できませんでした:', {
           currentUser,
           currentSatelliteId
@@ -447,8 +616,10 @@ const WeeklyEvaluationPage = () => {
       
       console.log('週報保存 - 送信するリクエストボディ:', JSON.stringify(requestBody, null, 2));
       
-      const response = await fetch(`${API_BASE_URL}/api/weekly-evaluations`, {
-        method: 'POST',
+      const response = await fetch(isEdit
+        ? `${API_BASE_URL}/api/weekly-evaluations/${evaluationId}`
+        : `${API_BASE_URL}/api/weekly-evaluations`, {
+        method: isEdit ? 'PUT' : 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -459,8 +630,15 @@ const WeeklyEvaluationPage = () => {
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
-          alert('評価(週次)を保存しました。');
-          saveLocationAndNavigate();
+          if (isEdit) {
+            alert('週次評価を更新しました。');
+            navigate(`/instructor/home-support/achievements/${studentId}`, {
+              state: { userName: student?.name || location.state?.userName || '' },
+            });
+          } else {
+            alert('評価(週次)を保存しました。');
+            saveLocationAndNavigate();
+          }
         } else {
           const errorMsg = data.message || '保存に失敗しました';
           const sqlError = data.sqlError ? `\nSQLエラー: ${data.sqlError}` : '';
@@ -500,6 +678,65 @@ const WeeklyEvaluationPage = () => {
     }
   };
 
+  const returnToAchievements = () => {
+    navigate(`/instructor/home-support/achievements/${studentId}`, {
+      state: { userName: student?.name || location.state?.userName || '' },
+    });
+  };
+
+  const handleDownloadExcel = async () => {
+    if (!student) {
+      alert('利用者情報が取得できません。');
+      return;
+    }
+    if (!periodStart || !periodEnd) {
+      alert('対象期間を設定してください。');
+      return;
+    }
+
+    setExcelDownloading(true);
+    try {
+      const dailyResponse = await apiCall(
+        `/api/remote-support/daily-reports?userId=${studentId}&startDate=${periodStart}&endDate=${periodEnd}&limit=0`,
+        { method: 'GET' }
+      );
+      if (!dailyResponse?.success) {
+        throw new Error(dailyResponse?.message || '日次支援記録の取得に失敗しました');
+      }
+      const dailyReports = (dailyResponse.data?.reports || []).map((record) => ({
+        ...record,
+        type: 'daily',
+      }));
+      const weeklyRecord = {
+        type: 'weekly',
+        date: evaluationDate || periodEnd,
+        prev_eval_date: prevEvalDate || null,
+        period_start: periodStart,
+        period_end: periodEnd,
+        evaluation_method: evaluationData.method,
+        method_other: evaluationData.method === 'その他' ? evaluationData.methodOther : null,
+        evaluation_content: evaluationData.content,
+        recorder_name: evaluationData.recorder,
+        confirm_name: evaluationData.confirmer,
+      };
+      await downloadHomeSupportExcel({
+        user: {
+          name: student.name,
+          recipient_number: student.recipient_number || student.recipientNumber || '',
+        },
+        records: [...dailyReports, weeklyRecord],
+        fileName: `在宅支援記録_${student.name}_${periodStart}_${periodEnd}.xlsx`,
+        placeWeeklyLast: true,
+      });
+      alert('Excelファイルのダウンロードが完了しました。');
+    } catch (error) {
+      console.error('Excelダウンロードエラー:', error);
+      alert('Excelファイルのダウンロードに失敗しました: ' + error.message);
+    } finally {
+      setExcelDownloading(false);
+    }
+  };
+
   // 日付フォーマット
   const formatDate = (dateStr) => {
     const date = new Date(dateStr);
@@ -511,84 +748,83 @@ const WeeklyEvaluationPage = () => {
     });
   };
 
-  if (!student) {
+  if (!currentUser || !localUser || !student || (isEdit && !editReady)) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center">
-        <div className="text-indigo-600 text-xl font-semibold">読み込み中...</div>
+      <div className="min-h-screen bg-gray-50">
+        {localUser && (
+          <InstructorHeader user={localUser} onLocationChange={handleLocationChange} />
+        )}
+        <div className="flex items-center justify-center py-24">
+          <div className="text-indigo-600 text-xl font-semibold">読み込み中...</div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
-      {/* ヘッダー */}
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white shadow-lg">
-        <div className="max-w-full mx-auto px-6 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <button 
-                className="px-4 py-2 bg-white bg-opacity-10 border border-white border-opacity-30 rounded-lg hover:bg-opacity-20 transition-all duration-200 font-medium"
-                onClick={saveLocationAndNavigate}
-              >
-                ← 在宅支援管理ダッシュボードに戻る
-              </button>
-              <div>
-                <h1 className="text-3xl font-bold mb-1">📊 評価(週次)作成</h1>
-                <p className="text-blue-100 text-sm">在宅における就労支援記録（評価）</p>
-              </div>
+    <div className="min-h-screen bg-gray-50">
+      <InstructorHeader user={localUser} onLocationChange={handleLocationChange} />
+      <main className="max-w-7xl mx-auto px-6 py-8">
+        <div className="mb-6">
+          <p className="text-sm font-medium text-emerald-700">在宅</p>
+          <h1 className="mt-1 text-3xl font-bold text-gray-900">{isEdit ? '評価(週次)編集 出力' : '評価(週次)'}</h1>
+          <p className="mt-2 text-gray-600">
+            {isEdit
+              ? '在宅における就労支援記録（評価）を編集します。Excelダウンロードでは、対象期間の日次支援記録のあとに、この週次評価を出力します。'
+              : '在宅における就労支援記録（評価）を作成します。'}
+          </p>
+        </div>
+
+        <div className="mb-6 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <div className="space-y-2 text-sm text-gray-600">
+              <p>
+                <span>対象者</span>
+                <span className="ml-2 font-semibold text-gray-900">{student.name}</span>
+              </p>
+              <p>
+                <span>受給者証番号</span>
+                <span className="ml-2 font-semibold text-gray-900">{student.recipientNumber || student.recipient_number || '未設定'}</span>
+              </p>
+              <p>
+                <span>前回評価日</span>
+                <span className="ml-2 font-semibold text-gray-900">{prevEvalDate ? formatDate(prevEvalDate) : 'なし'}</span>
+              </p>
             </div>
-          </div>
-          
-          {/* 期間設定 */}
-          <div className="mt-6 bg-white bg-opacity-10 rounded-xl p-4 border border-white border-opacity-20">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-3">
-                <div className="text-sm">
-                  <span className="text-blue-200">対象者:</span>
-                  <span className="ml-2 font-semibold text-white">{student.name}</span>
-                  <span className="ml-3 text-blue-200">受給者証番号:</span>
-                  <span className="ml-2 font-semibold text-white">{student.recipientNumber}</span>
-                </div>
-                <div className="text-sm">
-                  <span className="text-blue-200">前回評価日:</span>
-                  <span className="ml-2 font-semibold text-white">{prevEvalDate ? formatDate(prevEvalDate) : 'なし'}</span>
-                </div>
+            <div>
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <label className="text-sm font-medium text-gray-700">対象期間</label>
+                <span className="text-xs text-gray-500">
+                  {isEdit
+                    ? '一覧の期間を初期表示しています。開始日と終了日を変更できます。'
+                    : '初期値は月曜から土曜です。月曜に開くと先週の期間を表示します。'}
+                </span>
               </div>
-              <div>
-                <label className="block text-blue-200 text-sm mb-2">📅 対象期間を設定</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <input
-                      type="date"
-                      value={periodStart}
-                      onChange={(e) => {
-                        setPeriodStart(e.target.value);
-                        // 開始日を変更したら、自動的に6日後を終了日に設定（1週間）
-                        const newStart = new Date(e.target.value);
-                        const newEnd = new Date(newStart);
-                        newEnd.setDate(newStart.getDate() + 6);
-                        setPeriodEnd(newEnd.toISOString().split('T')[0]);
-                      }}
-                      className="w-full px-3 py-2 bg-white bg-opacity-20 border border-white border-opacity-30 rounded-lg text-white placeholder-blue-200 focus:ring-2 focus:ring-white focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <input
-                      type="date"
-                      value={periodEnd}
-                      onChange={(e) => setPeriodEnd(e.target.value)}
-                      className="w-full px-3 py-2 bg-white bg-opacity-20 border border-white border-opacity-30 rounded-lg text-white placeholder-blue-200 focus:ring-2 focus:ring-white focus:border-transparent"
-                    />
-                  </div>
-                </div>
+              <div className="grid grid-cols-2 gap-3">
+                <input
+                  type="date"
+                  value={periodStart}
+                  onChange={(e) => {
+                    setPeriodStart(e.target.value);
+                    if (isEdit) return;
+                    const newStart = new Date(e.target.value);
+                    const newEnd = new Date(newStart);
+                    newEnd.setDate(newStart.getDate() + 6);
+                    setPeriodEnd(newEnd.toISOString().split('T')[0]);
+                  }}
+                  className="w-full rounded-lg border-2 border-gray-300 px-3 py-2 font-medium text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <input
+                  type="date"
+                  value={periodEnd}
+                  onChange={(e) => setPeriodEnd(e.target.value)}
+                  className="w-full rounded-lg border-2 border-gray-300 px-3 py-2 font-medium text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* メインコンテンツ */}
-      <div className="max-w-7xl mx-auto px-6 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* 左側：日次記録一覧 */}
           <div className="bg-white rounded-2xl shadow-lg p-6">
@@ -813,23 +1049,33 @@ const WeeklyEvaluationPage = () => {
             </div>
 
             {/* ボタン */}
-            <div className="mt-8 flex gap-4">
+            <div className="mt-8 flex flex-wrap gap-4">
               <button
-                onClick={saveLocationAndNavigate}
+                onClick={isEdit ? returnToAchievements : saveLocationAndNavigate}
                 className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-300 transition-all duration-200"
               >
                 キャンセル
               </button>
+              {isEdit && (
+                <button
+                  type="button"
+                  onClick={handleDownloadExcel}
+                  disabled={excelDownloading}
+                  className="px-6 py-3 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-gray-400"
+                >
+                  {excelDownloading ? 'ダウンロード中...' : 'Excelダウンロード'}
+                </button>
+              )}
               <button
                 onClick={handleSave}
                 className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200"
               >
-                💾 保存
+                {isEdit ? '更新' : '💾 保存'}
               </button>
             </div>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 };

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import SSOTrustedSystemsManagement from './SSOTrustedSystemsManagement';
 import SSOAuditLogs from './SSOAuditLogs';
 
@@ -8,7 +9,7 @@ const SSOManagement = () => {
   return (
     <div className="space-y-6">
       <div className="border-b border-gray-200">
-        <nav className="flex gap-2">
+        <nav className="flex items-center gap-2">
           <button
             onClick={() => setActiveTab('systems')}
             className={`px-6 py-3 font-medium text-sm transition-colors ${
@@ -29,6 +30,12 @@ const SSOManagement = () => {
           >
             📋 監査ログ
           </button>
+          <Link
+            to="/admin/sso/guide"
+            className="ml-auto px-6 py-3 text-sm font-medium text-sky-800 underline underline-offset-4 hover:text-sky-950"
+          >
+            SSO実装手順
+          </Link>
         </nav>
       </div>
 

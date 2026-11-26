@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { updateDailyAttendance } from '../../utils/api';
-import { convertJSTTimeToUTCISO } from '../../utils/dateUtils';
+import HalfHourTimeInput, { toClockTime } from '../common/HalfHourTimeInput';
 
 const AttendanceEditModal = ({ isOpen, onClose, record, date, onSuccess }) => {
   const [formData, setFormData] = useState({
@@ -15,10 +15,10 @@ const AttendanceEditModal = ({ isOpen, onClose, record, date, onSuccess }) => {
   useEffect(() => {
     if (record) {
       setFormData({
-        startTime: record.startTime || '',
-        endTime: record.endTime || '',
-        breakStartTime: record.breakStartTime || '',
-        breakEndTime: record.breakEndTime || ''
+        startTime: toClockTime(record.startTime || ''),
+        endTime: toClockTime(record.endTime || ''),
+        breakStartTime: toClockTime(record.breakStartTime || ''),
+        breakEndTime: toClockTime(record.breakEndTime || '')
       });
     }
   }, [record]);
@@ -57,7 +57,7 @@ const AttendanceEditModal = ({ isOpen, onClose, record, date, onSuccess }) => {
 
       if (response.success) {
         if (onSuccess) {
-          onSuccess();
+          onSuccess({ ...formData });
         }
         onClose();
       } else {
@@ -107,20 +107,18 @@ const AttendanceEditModal = ({ isOpen, onClose, record, date, onSuccess }) => {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">開始時間</label>
-                <input 
-                  type="time" 
+                <HalfHourTimeInput
                   value={formData.startTime}
-                  onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={(startTime) => setFormData({ ...formData, startTime })}
+                  className="focus:ring-blue-500"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">終了時間</label>
-                <input 
-                  type="time" 
+                <HalfHourTimeInput
                   value={formData.endTime}
-                  onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={(endTime) => setFormData({ ...formData, endTime })}
+                  className="focus:ring-blue-500"
                 />
               </div>
             </div>
@@ -128,20 +126,18 @@ const AttendanceEditModal = ({ isOpen, onClose, record, date, onSuccess }) => {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">休憩開始</label>
-                <input 
-                  type="time" 
+                <HalfHourTimeInput
                   value={formData.breakStartTime}
-                  onChange={(e) => setFormData({ ...formData, breakStartTime: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={(breakStartTime) => setFormData({ ...formData, breakStartTime })}
+                  className="focus:ring-blue-500"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">休憩終了</label>
-                <input 
-                  type="time" 
+                <HalfHourTimeInput
                   value={formData.breakEndTime}
-                  onChange={(e) => setFormData({ ...formData, breakEndTime: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={(breakEndTime) => setFormData({ ...formData, breakEndTime })}
+                  className="focus:ring-blue-500"
                 />
               </div>
             </div>

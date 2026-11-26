@@ -1,0 +1,305 @@
+html[data-student-color="light-a"] {
+  --ss-page: #F9FAFB;
+  --ss-page-image: none;
+  --ss-chrome: linear-gradient(180deg, #EEF2FF 0%, #F8FAFC 100%);
+  --ss-card: #F9FAFB;
+  --ss-inset: #F8FAFC;
+  --ss-text: #1E293B;
+  --ss-muted: #64748B;
+  --ss-accent: #3B82F6;
+  --ss-on-accent: #FFFFFF;
+  --ss-chrome-text: #1E293B;
+  --ss-line: #E2E8F0;
+  --ss-track: #E2E8F0;
+  --ss-scheme: light;
+}
+
+html[data-student-color="light-b"] {
+  --ss-page: #F3ECE1;
+  --ss-page-image: linear-gradient(135deg, #FAF6F0 0%, #F3ECE1 100%);
+  --ss-chrome: linear-gradient(180deg, #F6E7D4 0%, #FAF6F0 100%);
+  --ss-card: #FDFBF7;
+  --ss-inset: #F3ECE1;
+  --ss-text: #2C2520;
+  --ss-muted: #786D63;
+  --ss-accent: #D97706;
+  --ss-on-accent: #FFFFFF;
+  --ss-chrome-text: #2C2520;
+  --ss-line: #E6D5C3;
+  --ss-track: #E6D5C3;
+  --ss-scheme: light;
+}
+
+html[data-student-color="dark-a"] {
+  --ss-page: #22252B;
+  --ss-page-image: linear-gradient(180deg, #2D3139 0%, #22252B 100%);
+  --ss-chrome: linear-gradient(180deg, #3A3F49 0%, #2D3139 100%);
+  --ss-card: #282C34;
+  --ss-inset: #22252B;
+  --ss-text: #CBD5E1;
+  --ss-muted: #8B949E;
+  --ss-accent: #38BDF8;
+  --ss-on-accent: #082F49;
+  --ss-chrome-text: #CBD5E1;
+  --ss-line: #3A3F48;
+  --ss-track: #3A3F48;
+  --ss-scheme: dark;
+}
+
+html[data-student-color="dark-b"] {
+  --ss-page: #0A0A0A;
+  --ss-page-image: none;
+  --ss-chrome: #141414;
+  --ss-card: #1C1C1C;
+  --ss-inset: #111111;
+  --ss-text: #E8E8E8;
+  --ss-muted: #9A9A9A;
+  --ss-accent: #F5F5F5;
+  --ss-on-accent: #0A0A0A;
+  --ss-chrome-text: #E8E8E8;
+  --ss-line: #2A2A2A;
+  --ss-track: #2A2A2A;
+  --ss-scheme: dark;
+}
+
+html[data-student-color] .student-shell {
+  background-color: var(--ss-page);
+  background-image: var(--ss-page-image);
+  color: var(--ss-text);
+  color-scheme: var(--ss-scheme);
+}
+
+html[data-student-color] .student-shell .from-blue-50.to-cyan-50:not(.student-chrome) {
+  background-image: none;
+  background-color: transparent;
+}
+
+html[data-student-color] .student-shell .student-chrome {
+  background-color: transparent;
+  background-image: var(--ss-chrome);
+  color: var(--ss-chrome-text);
+}
+
+html[data-student-color] .student-chrome .text-white:not(.bg-red-500),
+html[data-student-color] .student-chrome .text-blue-100 {
+  color: var(--ss-chrome-text);
+}
+
+html[data-student-color] .student-chrome .bg-white.bg-opacity-20 {
+  background-color: var(--ss-accent);
+  color: var(--ss-on-accent);
+}
+
+html[data-student-color] .student-chrome button.bg-white\/15 {
+  background-color: transparent;
+  border: 1px solid var(--ss-line);
+  color: var(--ss-chrome-text);
+}
+
+html[data-student-color] .student-nav {
+  background-color: transparent;
+  background-image: var(--ss-chrome);
+  box-shadow: none;
+}
+
+html[data-student-color] .student-nav .bg-gradient-to-r,
+html[data-student-color] .student-shell .from-blue-500.to-cyan-600:not(.student-chrome) {
+  background-image: none;
+  background-color: var(--ss-accent);
+  color: var(--ss-on-accent);
+}
+
+html[data-student-color] .student-shell .bg-white:not(.bg-opacity-10):not(.bg-opacity-20):not(.bg-opacity-30):not(.student-ai):not(.certificate-paper) {
+  background-color: var(--ss-card);
+  color: var(--ss-text);
+}
+
+html[data-student-color] .student-ai {
+  background-color: transparent;
+  background-image: var(--ss-chrome);
+  color: var(--ss-text);
+}
+
+html[data-student-color="dark-b"] .student-shell .student-chrome,
+html[data-student-color="dark-b"] .student-nav,
+html[data-student-color="dark-b"] .student-ai {
+  background-color: #141414;
+  background-image: none;
+}
+
+html[data-student-color] .student-shell .bg-gray-50 {
+  background-color: var(--ss-inset);
+}
+
+html[data-student-color] .student-shell .bg-gray-100,
+html[data-student-color] .student-shell .bg-gray-200 {
+  background-color: var(--ss-track);
+}
+
+html[data-student-color] .student-shell .text-gray-900,
+html[data-student-color] .student-shell .text-gray-800,
+html[data-student-color] .student-shell .text-gray-700 {
+  color: var(--ss-text);
+}
+
+html[data-student-color] .student-shell .text-gray-600,
+html[data-student-color] .student-shell .text-gray-500 {
+  color: var(--ss-muted);
+}
+
+html[data-student-color] .student-shell .border-gray-100,
+html[data-student-color] .student-shell .border-gray-200,
+html[data-student-color] .student-shell .border-gray-300 {
+  border-color: var(--ss-line);
+}
+
+html[data-student-color] .student-shell .text-blue-600,
+html[data-student-color] .student-shell .text-blue-700,
+html[data-student-color] .student-shell .hover\:text-blue-700:hover {
+  color: var(--ss-accent);
+}
+
+html[data-student-color] .student-shell .bg-blue-600,
+html[data-student-color] .student-shell .bg-blue-500,
+html[data-student-color] .student-shell .hover\:bg-blue-600:hover,
+html[data-student-color] .student-shell .hover\:bg-blue-700:hover {
+  background-color: var(--ss-accent);
+  color: var(--ss-on-accent);
+}
+
+html[data-student-color] .student-shell .border-blue-600 {
+  border-color: var(--ss-accent);
+}
+
+html[data-student-color="dark-a"] .student-shell .bg-blue-100,
+html[data-student-color="dark-b"] .student-shell .bg-blue-100 {
+  background-color: color-mix(in srgb, var(--ss-accent) 22%, transparent);
+}
+
+html[data-student-color="dark-a"] .student-shell .text-blue-800,
+html[data-student-color="dark-b"] .student-shell .text-blue-800 {
+  color: var(--ss-accent);
+}
+
+html[data-student-color] .student-shell .hover\:bg-blue-50:hover {
+  background-color: var(--ss-inset);
+}
+
+html[data-student-color] .student-mode-option {
+  background-color: var(--ss-inset);
+  border-color: var(--ss-line);
+  color: var(--ss-text);
+}
+
+html[data-student-color] .student-mode-option.is-selected {
+  border-color: var(--ss-accent);
+  box-shadow: inset 0 0 0 1px var(--ss-accent);
+}
+
+html[data-student-color="dark-a"] .student-shell .shadow-xl,
+html[data-student-color="dark-a"] .student-shell .shadow-md,
+html[data-student-color="dark-a"] .student-shell .shadow-lg,
+html[data-student-color="dark-b"] .student-shell .shadow-xl,
+html[data-student-color="dark-b"] .student-shell .shadow-md,
+html[data-student-color="dark-b"] .student-shell .shadow-lg {
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+}
+
+html[data-student-color] .certificate-paper,
+html[data-student-color] .certificate-paper .bg-white,
+html[data-student-color] .certificate-paper .bg-gray-50 {
+  background-color: #ffffff !important;
+  background-image: none !important;
+  color: #1f2937 !important;
+}
+
+html[data-student-color] .certificate-paper .text-gray-800,
+html[data-student-color] .certificate-paper .text-gray-700 {
+  color: #1f2937 !important;
+}
+
+html[data-student-color] .certificate-paper .text-gray-600,
+html[data-student-color] .certificate-paper .text-gray-500 {
+  color: #4b5563 !important;
+}
+
+html[data-student-color] .certificate-paper .text-blue-600 {
+  color: #2563eb !important;
+}
+
+html[data-student-color] .certificate-paper .text-green-600 {
+  color: #16a34a !important;
+}
+
+html[data-student-color] .certificate-paper .border-blue-200 {
+  border-color: #bfdbfe !important;
+}
+
+html[data-student-color] .certificate-paper .border-cyan-200 {
+  border-color: #a5f3fc !important;
+}
+
+.lesson-number-badge {
+  width: 48px;
+  height: 54px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  line-height: 0;
+}
+
+.lesson-number-badge svg {
+  width: 48px;
+  height: 54px;
+  display: block;
+}
+
+.lesson-number-badge .badge-dark {
+  display: none;
+}
+
+html[data-student-color^="dark"] .lesson-number-badge .badge-light {
+  display: none;
+}
+
+html[data-student-color^="dark"] .lesson-number-badge .badge-dark {
+  display: block;
+}
+
+.lesson-number-badge.is-earned {
+  cursor: pointer;
+}
+
+.lesson-number-badge.is-idle,
+.lesson-number-badge:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.lesson-number-badge:hover,
+.lesson-number-badge:disabled:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.lesson-number-badge:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+html[data-student-color^="dark"] .lesson-number-badge:focus-visible {
+  outline-color: #e5e7eb;
+}
+
+.certificate-complete {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+html[data-student-color^="dark"] .certificate-complete {
+  background-color: #14532d;
+  color: #bbf7d0;
+}

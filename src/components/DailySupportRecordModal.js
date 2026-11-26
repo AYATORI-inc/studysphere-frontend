@@ -3,6 +3,7 @@ import { getUserHealthData, getUserWorkPlan, updateUserDailyReport } from '../ut
 import { getSatelliteInstructors } from '../utils/api';
 import { getCurrentUser } from '../utils/userContext';
 import { API_BASE_URL } from '../config/apiConfig';
+import { formatJapanTimeOfInstant } from '../utils/dateUtils';
 
 /**
  * 日次支援記録モーダル
@@ -15,6 +16,7 @@ const DailySupportRecordModal = ({
   onSave, 
   student,
   date = new Date().toISOString().split('T')[0],
+  heading = '📝 在宅における就労支援記録',
   aiAssist 
 }) => {
   const [record, setRecord] = useState({
@@ -118,10 +120,10 @@ const DailySupportRecordModal = ({
         if (healthResult.data) {
           setRecord(prev => ({
             ...prev,
-            startTime: healthResult.data.mark_start ? new Date(healthResult.data.mark_start).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : '',
-            endTime: healthResult.data.mark_end ? new Date(healthResult.data.mark_end).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : '',
-            breakStartTime: healthResult.data.mark_lunch_start ? new Date(healthResult.data.mark_lunch_start).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : '',
-            breakEndTime: healthResult.data.mark_lunch_end ? new Date(healthResult.data.mark_lunch_end).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : ''
+            startTime: formatJapanTimeOfInstant(healthResult.data.mark_start) || '',
+            endTime: formatJapanTimeOfInstant(healthResult.data.mark_end) || '',
+            breakStartTime: formatJapanTimeOfInstant(healthResult.data.mark_lunch_start) || '',
+            breakEndTime: formatJapanTimeOfInstant(healthResult.data.mark_lunch_end) || ''
           }));
         }
       }
@@ -369,7 +371,7 @@ const DailySupportRecordModal = ({
       <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* ヘッダー */}
         <div className="bg-gradient-to-r from-green-500 to-emerald-600 text-white p-6">
-          <h2 className="text-2xl font-bold mb-2">📝 在宅における就労支援記録</h2>
+          <h2 className="text-2xl font-bold mb-2">{heading}</h2>
           <div className="text-green-100 text-sm space-y-1">
             <p>対象者名: <span className="font-semibold text-white">{student?.name || '未設定'}</span></p>
             <p>受給者証番号: <span className="font-semibold text-white">{student?.recipientNumber || '未設定'}</span></p>
@@ -485,18 +487,21 @@ const DailySupportRecordModal = ({
                 <label className="block text-sm font-medium text-gray-700">
                   作業・訓練内容 <span className="text-red-500">*</span>
                 </label>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handleAISuggestWork();
-                  }}
-                  disabled={aiSuggesting || !workNote}
-                  className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-all duration-200"
-                >
-                  {aiSuggesting ? '🤖 生成中...' : '🤖 AI提案'}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleAISuggestWork();
+                    }}
+                    disabled={aiSuggesting || !workNote}
+                    className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-all duration-200"
+                  >
+                    {aiSuggesting ? '🤖 生成中...' : '🤖 AI提案'}
+                  </button>
+                  <span className="text-xs text-gray-500">保存した内容から提案します。先に保存してください。</span>
+                </div>
               </div>
               <p className="text-xs text-gray-500 mb-2">実施した作業や訓練の内容を記録してください</p>
               <textarea
@@ -514,18 +519,21 @@ const DailySupportRecordModal = ({
                 <label className="block text-sm font-medium text-gray-700">
                   支援内容（1日2回以上） <span className="text-red-500">*</span>
                 </label>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handleAISuggestSupport();
-                  }}
-                  disabled={aiSuggestingSupport || !record.startTime || !record.endTime || !record.supportMethod}
-                  className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-all duration-200"
-                >
-                  {aiSuggestingSupport ? '🤖 生成中...' : '🤖 AI提案'}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleAISuggestSupport();
+                    }}
+                    disabled={aiSuggestingSupport || !record.startTime || !record.endTime || !record.supportMethod}
+                    className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-all duration-200"
+                  >
+                    {aiSuggestingSupport ? '🤖 生成中...' : '🤖 AI提案'}
+                  </button>
+                  <span className="text-xs text-gray-500">保存した内容から提案します。先に保存してください。</span>
+                </div>
               </div>
               <p className="text-xs text-gray-500 mb-2">
                 時系列で複数回（2回以上）の支援・連絡内容を記録してください
@@ -545,18 +553,21 @@ const DailySupportRecordModal = ({
                 <label className="block text-sm font-medium text-gray-700">
                   対象者の心身の状況及びそれに対する助言の内容 <span className="text-red-500">*</span>
                 </label>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handleAISuggestAdvice();
-                  }}
-                  disabled={aiSuggestingAdvice || !healthData?.condition || !record.remarks}
-                  className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-all duration-200"
-                >
-                  {aiSuggestingAdvice ? '🤖 生成中...' : '🤖 AI提案'}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleAISuggestAdvice();
+                    }}
+                    disabled={aiSuggestingAdvice || !healthData?.condition || !record.remarks}
+                    className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-all duration-200"
+                  >
+                    {aiSuggestingAdvice ? '🤖 生成中...' : '🤖 AI提案'}
+                  </button>
+                  <span className="text-xs text-gray-500">保存した内容から提案します。先に保存してください。</span>
+                </div>
               </div>
               <p className="text-xs text-gray-500 mb-2">時系列で体調確認と助言内容を記録してください</p>
               <textarea
@@ -596,6 +607,7 @@ const DailySupportRecordModal = ({
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 備考
               </label>
+              <p className="text-xs text-gray-500 mb-2">利用者の日報コメントを初期表示しています。ご参考ください。</p>
               <textarea
                 value={record.remarks}
                 onChange={(e) => updateRecord('remarks', e.target.value)}

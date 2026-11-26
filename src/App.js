@@ -1,12 +1,32 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { AuthProvider } from './components/contexts/AuthContext';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import AdminDashboard from './pages/AdminDashboard';
+import AdminCardDashboard from './pages/AdminCardDashboard';
+import { AdminAdminsPage, AdminSsoGuideRoute, AdminSsoPage } from './pages/AdminSectionPage';
+import AdminCoursesPage from './pages/admin/AdminCoursesPage';
+import AdminCourseDetailPage from './pages/admin/AdminCourseDetailPage';
+import AdminLessonDetailPage from './pages/admin/AdminLessonDetailPage';
+import AdminLessonsPage from './pages/admin/AdminLessonsPage';
+import AdminCurriculumPathsPage from './pages/admin/AdminCurriculumPathsPage';
+import AdminCurriculumPathDetailPage from './pages/admin/AdminCurriculumPathDetailPage';
+import AdminOfficesPage from './pages/admin/AdminOfficesPage';
+import AdminOfficeDetailPage from './pages/admin/AdminOfficeDetailPage';
+import AdminCompaniesPage from './pages/admin/AdminCompaniesPage';
+import AdminCompanySetupPage from './pages/admin/AdminCompanySetupPage';
+import AdminInstructorsPage from './pages/admin/AdminInstructorsPage';
+import AdminInstructorDetailPage from './pages/admin/AdminInstructorDetailPage';
+import AdminSpecificationsPage from './pages/admin/AdminSpecificationsPage';
 import InstructorDashboard from './pages/InstructorDashboard';
+import TmpDashboard from './pages/TmpDashboard';
+import InstructorCoursePreviewPage from './pages/InstructorCoursePreviewPage';
 import StudentLogin from './pages/StudentLogin';
 import StudentDashboard from './pages/StudentDashboard';
+import StudentAccountPage from './pages/StudentAccountPage';
+import StudentCurriculumPage from './pages/StudentCurriculumPage';
+import StudentLearningPage from './pages/StudentLearningPage';
 import AutoLoginPage from './pages/AutoLoginPage';
 import SSOLoginPage from './pages/SSOLoginPage';
 import SSODispatcherPage from './pages/SSODispatcherPage';
@@ -21,12 +41,25 @@ import DailyRecordsPage from './pages/DailyRecordsPage';
 import HomeSupportDailyRecordsPage from './pages/HomeSupportDailyRecordsPage';
 import HomeSupportEvaluationsPage from './pages/HomeSupportEvaluationsPage';
 import HomeSupportDashboard from './pages/HomeSupportDashboard_new';
+import HomeSupportUsersInfoPage from './pages/HomeSupportUsersInfoPage';
+import HomeSupportTodayPage from './pages/HomeSupportTodayPage';
+import HomeSupportHistoryPage from './pages/HomeSupportHistoryPage';
+import HomeSupportPhotoHistoryPage from './pages/HomeSupportPhotoHistoryPage';
+import HomeSupportAttendancePage from './pages/HomeSupportAttendancePage';
+import InstructorLocationPage from './pages/InstructorLocationPage';
+import InstructorSettingsPage from './pages/InstructorSettingsPage';
+import InstructorTempPasswordPage from './pages/InstructorTempPasswordPage';
+import InstructorStudentsPage from './pages/InstructorStudentsPage';
+import InstructorVoicePage from './pages/InstructorVoicePage';
+import HomeSupportEvaluationRecordsPage from './pages/HomeSupportEvaluationRecordsPage';
+import HomeSupportAchievementListPage from './pages/HomeSupportAchievementListPage';
 import WeeklyEvaluationPage from './pages/WeeklyEvaluationPage';
 import MonthlyEvaluationPage from './pages/MonthlyEvaluationPage';
 import MonthlyEvaluationHistoryPage from './pages/MonthlyEvaluationHistoryPage';
 import MonthlyAttendancePage from './pages/MonthlyAttendancePage';
 import HomeSupportRecordsPage from './pages/HomeSupportRecordsPage';
 import InstructorStudentDetail from './pages/InstructorStudentDetail';
+import StudentColorModeSync from './components/student/StudentColorModeSync';
 import './App.css';
 
 // デバッグ用のテストコンポーネント
@@ -39,6 +72,11 @@ const TestComponent = () => (
     <p>NODE_ENV: {process.env.NODE_ENV}</p>
   </div>
 );
+
+const LessonEditRedirect = () => {
+  const { courseId, lessonId } = useParams();
+  return <Navigate to={`/admin/courses/${courseId}/lessons/${lessonId}`} replace />;
+};
 
 function App() {
   // 環境に応じてbasenameを設定
@@ -57,6 +95,7 @@ function App() {
         v7_relativeSplatPath: true
       }}
     >
+      <StudentColorModeSync />
       <AuthProvider>
         <div className="App">
           <Routes>
@@ -69,13 +108,48 @@ function App() {
             {/* 管理者・指導員用ログインページ */}
             <Route path="/admin-instructor-login" element={<LoginPage />} />
             {/* 管理者用ダッシュボード */}
-            <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            <Route path="/admin/dashboard" element={<AdminCardDashboard />} />
+            <Route path="/admin/old-dashboard" element={<AdminDashboard />} />
+            <Route path="/admin/locations" element={<AdminOfficesPage />} />
+            <Route path="/admin/locations/:officeId" element={<AdminOfficeDetailPage />} />
+            <Route path="/admin/companies" element={<AdminCompaniesPage />} />
+            <Route path="/admin/companies/new" element={<AdminCompanySetupPage />} />
+            <Route path="/admin/companies/:companyId/setup" element={<AdminCompanySetupPage />} />
+            <Route path="/admin/instructors" element={<AdminInstructorsPage />} />
+            <Route path="/admin/instructors/:instructorId" element={<AdminInstructorDetailPage />} />
+            <Route path="/admin/specifications" element={<AdminSpecificationsPage />} />
+            <Route path="/admin/courses" element={<AdminCoursesPage />} />
+            <Route path="/admin/courses/:courseId/lessons/:lessonId/edit" element={<LessonEditRedirect />} />
+            <Route path="/admin/courses/:courseId/lessons/:lessonId" element={<AdminLessonDetailPage />} />
+            <Route path="/admin/courses/:courseId" element={<AdminCourseDetailPage />} />
+            <Route path="/admin/lessons" element={<AdminLessonsPage />} />
+            <Route path="/admin/curriculum-paths/:pathId" element={<AdminCurriculumPathDetailPage />} />
+            <Route path="/admin/curriculum-paths" element={<AdminCurriculumPathsPage />} />
+            <Route path="/admin/admins" element={<AdminAdminsPage />} />
+            <Route path="/admin/sso/guide" element={<AdminSsoGuideRoute />} />
+            <Route path="/admin/sso" element={<AdminSsoPage />} />
             {/* 指導員用ダッシュボード */}
-            <Route path="/instructor/dashboard" element={<InstructorDashboard />} />
+            <Route path="/instructor/dashboard" element={<TmpDashboard />} />
+            <Route path="/instructor/course-preview" element={<InstructorCoursePreviewPage />} />
+            <Route path="/instructor/tmp_dashboard" element={<Navigate to="/instructor/dashboard" replace />} />
+            {/* 従来の指導員ダッシュボード */}
+            <Route path="/instructor/old-dashboard" element={<InstructorDashboard />} />
+            <Route path="/instructor/location" element={<InstructorLocationPage />} />
+            <Route path="/instructor/settings" element={<InstructorSettingsPage />} />
+            <Route path="/instructor/temp-password" element={<InstructorTempPasswordPage />} />
+            <Route path="/instructor/students" element={<InstructorStudentsPage />} />
+            <Route path="/instructor/voice" element={<InstructorVoicePage />} />
             {/* 在宅支援専用ダッシュボード */}
             <Route path="/instructor/home-support" element={<HomeSupportDashboard />} />
+            <Route path="/instructor/home-support/users" element={<HomeSupportUsersInfoPage />} />
+            <Route path="/instructor/home-support/today" element={<HomeSupportTodayPage />} />
+            <Route path="/instructor/home-support/history" element={<HomeSupportHistoryPage />} />
+            <Route path="/instructor/home-support/photos" element={<HomeSupportPhotoHistoryPage />} />
+            <Route path="/instructor/home-support/attendance" element={<HomeSupportAttendancePage />} />
+            <Route path="/instructor/home-support/evaluations" element={<HomeSupportEvaluationRecordsPage />} />
+            <Route path="/instructor/home-support/achievements/:userId" element={<HomeSupportAchievementListPage />} />
             {/* 互換性のため古いパスも残す */}
-            <Route path="/teacher/dashboard" element={<InstructorDashboard />} />
+            <Route path="/teacher/dashboard" element={<TmpDashboard />} />
             {/* 利用者用ログイン（トークンベース） */}
             <Route path="/student/login/:token" element={<StudentLogin />} />
             {/* 利用者用ログイン（パラメータなし） */}
@@ -90,8 +164,11 @@ function App() {
             <Route path="/sso-dispatch" element={<SSODispatcherPage />} />
             {/* 利用者用ダッシュボード */}
             <Route path="/student/dashboard" element={<StudentDashboard />} />
-            {/* 学習画面（リファクタリング版を使用） */}
-            <Route path="/student/enhanced-learning" element={<EnhancedLearningPageRefactored />} />
+            <Route path="/student/old-dashboard" element={<StudentDashboard />} />
+            <Route path="/student/account" element={<StudentAccountPage />} />
+            <Route path="/student/curriculum/:courseId" element={<StudentCurriculumPage />} />
+            <Route path="/student/enhanced-learning" element={<StudentLearningPage />} />
+            <Route path="/student/old-enhanced-learning" element={<EnhancedLearningPageRefactored />} />
             {/* 学習効果テスト関連 */}
             <Route path="/student/test" element={<TestPage />} />
             <Route path="/student/section-test" element={<SectionTestPage />} />

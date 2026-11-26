@@ -17,11 +17,9 @@ import SubmissionApprovalModal from './student-management/SubmissionApprovalModa
 import PendingSubmissionAlert from './student-management/PendingSubmissionAlert';
 import ModalErrorDisplay from './common/ModalErrorDisplay';
 
-import TodayActiveModal from './student-management/TodayActiveModal';
-
 import { API_BASE_URL } from '../config/apiConfig';
 
-const StudentManagementRefactored = ({ teacherId, onTestApproval, onSubmissionApproval }) => {
+const StudentManagementRefactored = ({ onTestApproval, onSubmissionApproval, showHeading = true }) => {
   const { currentUser, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   
@@ -38,20 +36,11 @@ const StudentManagementRefactored = ({ teacherId, onTestApproval, onSubmissionAp
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTags, setSelectedTags] = useState([]);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [showDangerActions, setShowDangerActions] = useState(false);
   
-  // タグ管理用の選択状態
-  const [selectedStudents, setSelectedStudents] = useState([]);
-  
-  // 今日の活動メッセージ関連のstate
-  const [showTodayActiveModal, setShowTodayActiveModal] = useState(false);
-
-  // 学習コース追加モーダルの状態
+  // 学習コースの割り当てモーダルの状態
   const [showCourseAssignmentModal, setShowCourseAssignmentModal] = useState(false);
   const [showCourseManagerModal, setShowCourseManagerModal] = useState(false);
-
-  // 適職診断管理画面への遷移状態
-  const [isLoadingCareerAssessment, setIsLoadingCareerAssessment] = useState(false);
-
 
   // 合格承認モーダルの状態
   const [showTestApprovalModal, setShowTestApprovalModal] = useState(false);
@@ -119,64 +108,6 @@ const StudentManagementRefactored = ({ teacherId, onTestApproval, onSubmissionAp
     // 利用者データを再取得
     fetchStudents();
   };
-
-  // 適職診断管理画面への遷移
-  const handleCareerAssessmentClick = async () => {
-    setIsLoadingCareerAssessment(true);
-    
-    try {
-      // アクセストークンを取得
-      const accessToken = localStorage.getItem('accessToken');
-      
-      if (!accessToken) {
-        alert('認証トークンが見つかりません。再度ログインしてください。');
-        setIsLoadingCareerAssessment(false);
-        return;
-      }
-
-      // SSOチケット生成APIを呼び出し
-      const response = await fetch(`${API_BASE_URL}/api/sso/ticket/generate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`
-        },
-        body: JSON.stringify({
-          target_system: 'findjob',
-          source_system: 'studysphere',
-          context: 'career_assessment_admin'
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || 'SSOチケットの生成に失敗しました');
-      }
-
-      const result = await response.json();
-      
-      if (!result.success || !result.data?.ticket) {
-        throw new Error('SSOチケットの生成に失敗しました');
-      }
-
-      // 生成されたチケットを使ってfindjobのauto-loginページにリダイレクト
-      const ticket = result.data.ticket;
-      const careerAssessmentUrl = `https://findjob.myou-kou.com/auto-login?ticket=${encodeURIComponent(ticket)}`;
-      
-      // 適職診断管理画面を新しいタブで開く
-      window.open(careerAssessmentUrl, '_blank');
-      
-      // ローディング状態を解除
-      setIsLoadingCareerAssessment(false);
-      
-    } catch (error) {
-      console.error('適職診断管理画面への遷移エラー:', error);
-      alert(error.message || '適職診断管理画面への遷移に失敗しました。');
-      setIsLoadingCareerAssessment(false);
-    }
-  };
-
-
 
   // 現在の拠点IDを取得
   useEffect(() => {
@@ -364,6 +295,17 @@ const StudentManagementRefactored = ({ teacherId, onTestApproval, onSubmissionAp
     
     console.log('=== StudentManagement 拠点ID取得完了 ===');
   }, [currentUser]);
+
+  useEffect(() => {
+    const handleSatelliteChanged = (event) => {
+      const location = event.detail?.newLocation || event.detail?.satellite;
+      if (!location?.id) return;
+      setCurrentSatelliteId(location.id);
+      if (location.name) setCurrentSatelliteName(location.name);
+    };
+    window.addEventListener('satelliteChanged', handleSatelliteChanged);
+    return () => window.removeEventListener('satelliteChanged', handleSatelliteChanged);
+  }, []);
 
   // 利用者データを取得（拠点フィルタリング付き）
   const fetchStudents = async () => {
@@ -777,67 +719,43 @@ const StudentManagementRefactored = ({ teacherId, onTestApproval, onSubmissionAp
   const filteredStudents = getFilteredStudents();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* ヘッダー */}
-        <div className="bg-white rounded-2xl shadow-xl p-6 mb-6 border border-gray-100">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <div className="flex-1">
-              <h2 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">
-                👥 利用者一覧
-              </h2>
-              <div className="flex items-center gap-2 text-gray-600">
-                <span className="text-lg">📍</span>
-                <div>
-                                     <p className="font-medium">指導員ダッシュボード</p>
-                   <p className="text-sm text-gray-500">※利用者の管理と一時パスワード発行を行います</p>
-                </div>
+    <div className={showHeading ? 'min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6' : ''}>
+      <div className={showHeading ? 'max-w-7xl mx-auto' : ''}>
+        <div className={showHeading
+          ? 'bg-white rounded-2xl shadow-xl p-6 mb-6 border border-gray-100'
+          : 'mb-6 flex justify-end'
+        }>
+          <div className={showHeading ? 'flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between' : ''}>
+            {showHeading && (
+              <div>
+                <h2 className="text-3xl font-bold text-indigo-700 mb-2">
+                  利用者一覧
+                </h2>
+                <p className="text-sm text-gray-500">利用者の追加、学習コース、タグを扱います</p>
               </div>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <button 
-                className="px-6 py-3 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2"
-                onClick={() => tagManager.setShowTagModal(true)}
-              >
-                🏷️ タグ一括追加
-              </button>
-                             <button 
-                 className="px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2"
-                 onClick={() => setShowTodayActiveModal(true)}
-               >
-                 🔑 本日有効
-               </button>
-              <button 
-                className="px-6 py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2"
-                onClick={() => setShowCourseAssignmentModal(true)}
-              >
-                📚 学習コース追加
-              </button>
-              <button 
-                className="px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2"
+            )}
+            <div className="flex flex-wrap gap-2">
+              <button
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
                 onClick={() => {
                   studentAdder.setShowAddForm(true);
                   studentAdder.setBulkInputText('');
                   studentAdder.setBulkInstructorId('');
                 }}
               >
-                + 新しい利用者を追加
+                利用者を追加
               </button>
-              <button 
-                className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                onClick={handleCareerAssessmentClick}
-                disabled={isLoadingCareerAssessment}
+              <button
+                className="px-4 py-2 bg-white text-gray-800 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+                onClick={() => setShowCourseAssignmentModal(true)}
               >
-                {isLoadingCareerAssessment ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    読み込み中...
-                  </>
-                ) : (
-                  <>
-                    🎯 適職診断管理
-                  </>
-                )}
+                学習コース
+              </button>
+              <button
+                className="px-4 py-2 bg-white text-gray-800 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+                onClick={() => tagManager.setShowTagModal(true)}
+              >
+                タグを付ける
               </button>
             </div>
           </div>
@@ -904,6 +822,14 @@ const StudentManagementRefactored = ({ teacherId, onTestApproval, onSubmissionAp
                 >
                   クリア
                 </button>
+                <label className="flex items-center gap-2 px-3 text-sm text-gray-700 whitespace-nowrap">
+                  <input
+                    type="checkbox"
+                    checked={showDangerActions}
+                    onChange={(event) => setShowDangerActions(event.target.checked)}
+                  />
+                  停止・削除を表示
+                </label>
               </div>
             </div>
 
@@ -927,27 +853,18 @@ const StudentManagementRefactored = ({ teacherId, onTestApproval, onSubmissionAp
               </div>
             </div>
 
-            {/* フィルターサマリー */}
-            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-100">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">📊</span>
-                <span className="font-semibold text-gray-700">
-                  表示中: {filteredStudents.length}名 / 全{students.length}名
-                </span>
-              </div>
-              {selectedTags.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600">選択中のタグ:</span>
-                  <div className="flex gap-1">
-                    {selectedTags.map(tag => (
-                      <span key={tag} className="px-2 py-1 bg-indigo-100 text-indigo-700 text-xs rounded-full">
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
+            {selectedTags.length > 0 && (
+              <div className="flex items-center gap-2 p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-100">
+                <span className="text-sm text-gray-600">選択中のタグ:</span>
+                <div className="flex gap-1">
+                  {selectedTags.map(tag => (
+                    <span key={tag} className="px-2 py-1 bg-indigo-100 text-indigo-700 text-xs rounded-full">
+                      {tag}
+                    </span>
+                  ))}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -962,17 +879,18 @@ const StudentManagementRefactored = ({ teacherId, onTestApproval, onSubmissionAp
             onTestApproval={handleTestApprovalInternal}
             onSubmissionApproval={handleSubmissionApprovalInternal}
             onEditStudent={(student) => studentEditor.openEditModal(student)}
+            showDangerActions={showDangerActions}
           />
         </div>
 
         {/* モーダル類 */}
-        {/* タグ一括追加モーダル */}
+        {/* タグを付けるモーダル */}
         {tagManager.showTagModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-y-auto">
               <div className="p-6 border-b border-gray-200">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-2xl font-bold text-gray-800">🏷️ タグ一括追加</h3>
+                  <h3 className="text-2xl font-bold text-gray-800">タグを付ける</h3>
                   <button 
                     className="text-gray-400 hover:text-gray-600 text-2xl font-bold w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-all duration-200"
                     onClick={tagManager.resetModal}
@@ -1197,17 +1115,7 @@ const StudentManagementRefactored = ({ teacherId, onTestApproval, onSubmissionAp
           </div>
         )}
 
-                 {/* 本日有効・一括利用設定モーダル */}
-         <TodayActiveModal
-           isOpen={showTodayActiveModal}
-           onClose={() => setShowTodayActiveModal(false)}
-           students={students}
-           selectedStudents={selectedStudents}
-           onStudentsUpdate={fetchStudents}
-           onSelectStudents={setSelectedStudents}
-         />
-
-        {/* 学習コース追加モーダル */}
+        {/* 学習コースの割り当てモーダル */}
         <CourseAssignmentModal
           isOpen={showCourseAssignmentModal}
           onClose={() => setShowCourseAssignmentModal(false)}

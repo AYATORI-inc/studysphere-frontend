@@ -1,14 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getSatelliteEvaluationStatus } from '../../utils/api';
+import { getSatelliteEvaluationStatus, getSatelliteHomeSupportUsersWithDailyRecords } from '../../utils/api';
 import { getCurrentUser } from '../../utils/userContext';
+import { getCurrentJapanTime } from '../../utils/dateUtils';
+import { buildRecordAlerts, groupHomeSupportUsers } from '../../utils/dashboardWarnings';
 
-const EvaluationsTab = ({ 
-  handleDailySupportRecordClick 
+const EvaluationsTab = ({
+  handleDailySupportRecordClick,
+  showSupportRecord = true,
+  alwaysShowCreate = false,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [evaluationUsers, setEvaluationUsers] = useState([]);
+  const [alerts, setAlerts] = useState({ dailyRecord: [], weeklyRecord: [], monthlyRecord: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [currentSatellite, setCurrentSatellite] = useState(null);
@@ -124,6 +129,18 @@ const EvaluationsTab = ({
         
         if (response.success && response.data) {
           setEvaluationUsers(response.data);
+          try {
+            const usersResponse = await getSatelliteHomeSupportUsersWithDailyRecords(satelliteId, null, null);
+            const students = usersResponse?.success ? groupHomeSupportUsers(usersResponse.data) : [];
+            setAlerts(buildRecordAlerts({
+              evaluationUsers: response.data,
+              students,
+              now: getCurrentJapanTime(),
+            }));
+          } catch (alertError) {
+            console.error('評価記録アラートの取得エラー:', alertError);
+            setAlerts({ dailyRecord: [], weeklyRecord: [], monthlyRecord: [] });
+          }
         } else {
           throw new Error(response.message || '評価状況の取得に失敗しました');
         }
@@ -204,6 +221,61 @@ const EvaluationsTab = ({
 
   return (
     <div className="space-y-6">
+      {(alerts.dailyRecord.length > 0 || alerts.weeklyRecord.length > 0 || alerts.monthlyRecord.length > 0) && (
+        <div className="space-y-4">
+          {alerts.dailyRecord.length > 0 && (
+            <div className="bg-gradient-to-r from-orange-50 to-amber-50 border-l-4 border-orange-500 rounded-lg shadow-md p-4">
+              <div className="flex items-start">
+                <span className="text-2xl">⚠️</span>
+                <div className="ml-3 flex-1">
+                  <h3 className="text-lg font-semibold text-orange-800 mb-2">日次記録が記載されていません</h3>
+                  <div className="space-y-1">
+                    {alerts.dailyRecord.map((alert) => (
+                      <p key={`${alert.userId}-${alert.date}`} className="text-sm text-orange-700">
+                        {alert.userName}さんの日次記録が記載されていません（{new Date(alert.date).toLocaleDateString('ja-JP')}）
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          {alerts.weeklyRecord.length > 0 && (
+            <div className="bg-gradient-to-r from-yellow-50 to-amber-50 border-l-4 border-yellow-500 rounded-lg shadow-md p-4">
+              <div className="flex items-start">
+                <span className="text-2xl">⚠️</span>
+                <div className="ml-3 flex-1">
+                  <h3 className="text-lg font-semibold text-yellow-800 mb-2">週次記録が記載されていません</h3>
+                  <div className="space-y-1">
+                    {alerts.weeklyRecord.map((alert) => (
+                      <p key={alert.userId} className="text-sm text-yellow-700">
+                        {alert.userName}さんの週次記録が記載されていません（{alert.daysAgo}日前）
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          {alerts.monthlyRecord.length > 0 && (
+            <div className="bg-gradient-to-r from-red-50 to-pink-50 border-l-4 border-red-500 rounded-lg shadow-md p-4">
+              <div className="flex items-start">
+                <span className="text-2xl">⚠️</span>
+                <div className="ml-3 flex-1">
+                  <h3 className="text-lg font-semibold text-red-800 mb-2">達成度評価がされていません</h3>
+                  <div className="space-y-1">
+                    {alerts.monthlyRecord.map((alert) => (
+                      <p key={`${alert.userId}-${alert.recordDate}`} className="text-sm text-red-700">
+                        {alert.userName}さんの達成度評価がされていません（最終記録: {new Date(alert.recordDate).toLocaleDateString('ja-JP')}）
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
       <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
         <div className="flex justify-between items-center mb-6">
           <div>
@@ -367,47 +439,50 @@ const EvaluationsTab = ({
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex flex-wrap gap-2">
-                          <button 
-                            onClick={() => handleDailySupportRecordClick({
-                              id: user.id,
-                              name: user.name,
-                              recipientNumber: user.recipientNumber
-                            })}
-                            className="text-white text-sm px-3 py-1 rounded bg-green-600 hover:bg-green-700 transition-colors duration-200"
-                          >
-                            📝 支援記録
-                          </button>
-                          {user.weeklyStatus === '未完了' && (
+                          {showSupportRecord && (
+                            <button
+                              onClick={() => handleDailySupportRecordClick({
+                                id: user.id,
+                                name: user.name,
+                                recipientNumber: user.recipientNumber
+                              })}
+                              className="text-white text-sm px-3 py-1 rounded bg-green-600 hover:bg-green-700 transition-colors duration-200"
+                            >
+                              📝 支援記録
+                            </button>
+                          )}
+                          {(alwaysShowCreate || user.weeklyStatus === '未完了') && (
                             <button 
                               onClick={() => navigateWithLocation(`/instructor/home-support/weekly-evaluation/${user.id}`)}
                               className="text-white text-sm px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 transition-colors duration-200"
                             >
-                              📊 評価(週次)
+                              {alwaysShowCreate ? '📊 評価(週次) 新規作成' : '📊 評価(週次)'}
                             </button>
                           )}
-                          {user.monthlyStatus === '未完了' && (
+                          {(alwaysShowCreate || user.monthlyStatus === '未完了') && (
                             <button 
                               onClick={() => navigateWithLocation(`/instructor/home-support/monthly-evaluation/${user.id}`)}
                               className="text-white text-sm px-3 py-1 rounded bg-purple-600 hover:bg-purple-700 transition-colors duration-200"
                             >
-                              📈 達成度評価
+                              {alwaysShowCreate ? '📈 達成度評価(月次) 新規作成' : '📈 達成度評価(月次)'}
                             </button>
                           )}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex flex-wrap gap-2">
-                          <button 
-                            onClick={() => navigateWithLocation(`/instructor/home-support/records/${user.id}`)}
-                            className="text-white text-sm px-3 py-1 rounded bg-indigo-600 hover:bg-indigo-700 transition-colors duration-200"
+                          <button
+                            onClick={() => {
+                              if (currentSatellite) {
+                                sessionStorage.setItem('selectedSatellite', JSON.stringify(currentSatellite));
+                              }
+                              navigate(`/instructor/home-support/achievements/${user.id}`, {
+                                state: { userName: user.name },
+                              });
+                            }}
+                            className="text-white text-sm px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-700 transition-colors duration-200"
                           >
-                            🔍 過去の記録確認
-                          </button>
-                          <button 
-                            onClick={() => navigateWithLocation(`/instructor/home-support/monthly-evaluation-history/${user.id}`)}
-                            className="text-white text-sm px-3 py-1 rounded bg-purple-600 hover:bg-purple-700 transition-colors duration-200"
-                          >
-                            📊 達成度履歴確認
+                            実績確認・出力
                           </button>
                         </div>
                       </td>

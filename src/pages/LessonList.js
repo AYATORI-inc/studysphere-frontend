@@ -384,17 +384,17 @@ const LessonList = ({ selectedCourseId }) => {
         
         // 学習画面に遷移
         console.log(`🔄 学習画面に遷移: course=${lesson.course_id}&lesson=${lesson.id}`);
-        navigate(`/student/enhanced-learning?course=${lesson.course_id}&lesson=${lesson.id}`);
+        navigate(`/student/old-enhanced-learning?course=${lesson.course_id}&lesson=${lesson.id}`);
       } else {
         const errorData = await response.json();
         console.error('進捗更新に失敗しました:', errorData);
         // 進捗更新に失敗しても学習画面には遷移
-        navigate(`/student/enhanced-learning?course=${lesson.course_id}&lesson=${lesson.id}`);
+        navigate(`/student/old-enhanced-learning?course=${lesson.course_id}&lesson=${lesson.id}`);
       }
     } catch (error) {
       console.error('学習開始エラー:', error);
       // エラーが発生しても学習画面には遷移
-      navigate(`/student/enhanced-learning?course=${lesson.course_id}&lesson=${lesson.id}`);
+      navigate(`/student/old-enhanced-learning?course=${lesson.course_id}&lesson=${lesson.id}`);
     }
   };
 

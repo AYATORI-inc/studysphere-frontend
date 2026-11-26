@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getSatelliteHomeSupportUsers, getSatelliteHomeSupportUsersWithDailyRecords } from '../../utils/api';
+import { formatStoredMarkTime, toJapanDateKey } from '../../utils/dateUtils';
 import { getCurrentUser } from '../../utils/userContext';
 
 const OverviewTab = ({ 
@@ -118,22 +119,18 @@ const OverviewTab = ({
       
       const satelliteData = JSON.parse(selectedSatellite);
       console.log('OverviewTab: 拠点情報:', satelliteData);
+
+      const now = new Date();
+      const todayDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
       
-      // 在宅支援利用者データを取得（すべての日次記録情報を含む）
-      // dateパラメータを渡さずに全データを取得し、フロントエンドで今日の日付でフィルタリング
-      console.log('OverviewTab: DB連携 - API呼び出し開始: satelliteId=', satelliteData.id);
+      // 今日の稼働だけを表示するので、当日の日次記録だけを取得する
+      console.log('OverviewTab: DB連携 - API呼び出し開始: satelliteId=', satelliteData.id, 'date=', todayDate);
       
-      const response = await getSatelliteHomeSupportUsersWithDailyRecords(satelliteData.id, null, null);
+      const response = await getSatelliteHomeSupportUsersWithDailyRecords(satelliteData.id, null, todayDate);
       console.log('OverviewTab: DB連携 - APIレスポンス:', response);
       console.log('OverviewTab: DB連携 - 取得データ数:', response?.data?.length || 0);
       
       if (response.success && response.data) {
-        // 今日の日付を取得（ローカル時間を使用、YYYY-MM-DD形式）
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        const todayDate = `${year}-${month}-${day}`;
         console.log('OverviewTab: 現在時刻:', now.toString());
         console.log('OverviewTab: 今日の日付（フィルタ用）:', todayDate);
         
@@ -155,7 +152,7 @@ const OverviewTab = ({
           
           // 日次記録がある場合のみ追加（今日の記録のみ）
           // record_dateから日付部分だけを抽出（YYYY-MM-DD形式）
-          const recordDate = record.record_date ? record.record_date.toString().substring(0, 10) : null;
+          const recordDate = toJapanDateKey(record.record_date);
           
           if (record.daily_record_id) {
             console.log('OverviewTab: 日次記録発見 - userId:', userId, ', record_date:', record.record_date, ', recordDate:', recordDate, ', todayDate:', todayDate, ', 一致:', recordDate === todayDate);
@@ -386,18 +383,10 @@ const OverviewTab = ({
                   };
                   
                   const status = getStatus();
-                  const startTime = latestRecord?.markStart ? 
-                    new Date(latestRecord.markStart).toLocaleTimeString('ja-JP', {hour: '2-digit', minute: '2-digit'}) : 
-                    '未設定';
-                  const breakStartTime = latestRecord?.markLunchStart ? 
-                    new Date(latestRecord.markLunchStart).toLocaleTimeString('ja-JP', {hour: '2-digit', minute: '2-digit'}) : 
-                    '未設定';
-                  const breakEndTime = latestRecord?.markLunchEnd ? 
-                    new Date(latestRecord.markLunchEnd).toLocaleTimeString('ja-JP', {hour: '2-digit', minute: '2-digit'}) : 
-                    '未設定';
-                  const endTime = latestRecord?.markEnd ? 
-                    new Date(latestRecord.markEnd).toLocaleTimeString('ja-JP', {hour: '2-digit', minute: '2-digit'}) : 
-                    '未設定';
+                  const startTime = formatStoredMarkTime(latestRecord?.markStart) || '未設定';
+                  const breakStartTime = formatStoredMarkTime(latestRecord?.markLunchStart) || '未設定';
+                  const breakEndTime = formatStoredMarkTime(latestRecord?.markLunchEnd) || '未設定';
+                  const endTime = formatStoredMarkTime(latestRecord?.markEnd) || '未設定';
                   
                   return (
                     <tr key={user.id} className="hover:bg-gray-50">

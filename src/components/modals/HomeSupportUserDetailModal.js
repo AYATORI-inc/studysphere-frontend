@@ -1,10 +1,41 @@
 import React, { useState, useEffect } from 'react';
 import { updateRecipientNumber, getSupportPlan, upsertSupportPlan } from '../../utils/api';
+import { toJapanDateKey } from '../../utils/dateUtils';
+
+const GOAL_DATE_MIN_YEAR = 1900;
+const GOAL_DATE_MAX_YEAR = 2100;
+
+const goalDateError = (value, required = false) => {
+  const text = (value || '').trim();
+  if (!text) {
+    return required ? '目標達成予定日を入力してください。' : '';
+  }
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+  if (!match) {
+    return '目標達成予定日は4桁の年で、実在する日付を入力してください。';
+  }
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(year, month - 1, day);
+  const exists = date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
+  if (!exists || year < GOAL_DATE_MIN_YEAR || year > GOAL_DATE_MAX_YEAR) {
+    return `目標達成予定日は${GOAL_DATE_MIN_YEAR}年から${GOAL_DATE_MAX_YEAR}年の実在する日付にしてください。`;
+  }
+  return '';
+};
+
+const goalDateForInput = (value) => {
+  const key = toJapanDateKey(value);
+  if (!key || goalDateError(key)) return '';
+  return key;
+};
 
 const HomeSupportUserDetailModal = ({ isOpen, onClose, student, onSave }) => {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [recipientNumber, setRecipientNumber] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
   const [supportPlan, setSupportPlan] = useState({
     long_term_goal: '',
     short_term_goal: '',
@@ -25,23 +56,12 @@ const HomeSupportUserDetailModal = ({ isOpen, onClose, student, onSave }) => {
       });
       // 受給者証番号を設定（APIが snake_case / camelCase のどちらでも受け取れるように）
       setRecipientNumber(student.recipient_number ?? student.recipientNumber ?? '');
+      setFieldErrors({});
 
       // 個別支援計画を取得（あれば上書き、404の場合は空のまま）
       fetchSupportPlan();
     }
   }, [isOpen, student]);
-
-  // DBの日付を <input type="date"> 用の YYYY-MM-DD に正規化
-  const formatGoalDateForInput = (value) => {
-    if (value == null || value === '') return '';
-    if (typeof value === 'string') {
-      if (value.includes('T')) return value.slice(0, 10); // ISO の場合は日付部分のみ
-      if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
-      return value;
-    }
-    if (value instanceof Date) return value.toISOString().slice(0, 10);
-    return String(value).slice(0, 10);
-  };
 
   const fetchSupportPlan = async () => {
     if (!student?.id) return;
@@ -56,7 +76,7 @@ const HomeSupportUserDetailModal = ({ isOpen, onClose, student, onSave }) => {
           short_term_goal: data.short_term_goal || '',
           needs: data.needs || '',
           support_content: data.support_content || '',
-          goal_date: formatGoalDateForInput(data.goal_date)
+          goal_date: goalDateForInput(data.goal_date)
         });
       }
     } catch (error) {
@@ -69,25 +89,33 @@ const HomeSupportUserDetailModal = ({ isOpen, onClose, student, onSave }) => {
   const handleSave = async () => {
     if (!student?.id) return;
 
-    // 目標達成予定日は必須
     const goalDateValue = (supportPlan.goal_date || '').trim();
-    if (!goalDateValue) {
-      alert('目標達成予定日が入力されていません');
+    const dateError = goalDateError(goalDateValue, true);
+    if (dateError) {
+      setFieldErrors({ goal_date: dateError });
       return;
     }
 
+    const planToSave = {
+      long_term_goal: supportPlan.long_term_goal.trim(),
+      short_term_goal: supportPlan.short_term_goal.trim(),
+      needs: supportPlan.needs.trim(),
+      support_content: supportPlan.support_content.trim(),
+      goal_date: goalDateValue,
+    };
+    const nextRecipientNumber = recipientNumber.trim();
+
+    setFieldErrors({});
     setSaving(true);
     try {
-      // 受給者証番号を更新
-      const currentRecipient = student.recipient_number ?? student.recipientNumber ?? '';
-      if (recipientNumber !== currentRecipient) {
-        await updateRecipientNumber(student.id, recipientNumber);
+      const currentRecipient = (student.recipient_number ?? student.recipientNumber ?? '').trim();
+      if (nextRecipientNumber !== currentRecipient) {
+        await updateRecipientNumber(student.id, nextRecipientNumber);
       }
 
-      // 個別支援計画を保存
       await upsertSupportPlan({
         user_id: student.id,
-        ...supportPlan
+        ...planToSave,
       });
 
       alert('利用者情報を保存しました');
@@ -234,14 +262,23 @@ const HomeSupportUserDetailModal = ({ isOpen, onClose, student, onSave }) => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      目標達成予定日
+                      目標達成予定日 <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="date"
-                      value={supportPlan.goal_date}
-                      onChange={(e) => setSupportPlan(prev => ({ ...prev, goal_date: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      min={`${GOAL_DATE_MIN_YEAR}-01-01`}
+                      max={`${GOAL_DATE_MAX_YEAR}-12-31`}
+                      value={/^\d{4}-\d{2}-\d{2}$/.test(supportPlan.goal_date) ? supportPlan.goal_date : ''}
+                      onChange={(e) => {
+                        const nextValue = e.target.value;
+                        setSupportPlan(prev => ({ ...prev, goal_date: nextValue }));
+                        setFieldErrors(prev => ({ ...prev, goal_date: goalDateError(nextValue) }));
+                      }}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${fieldErrors.goal_date ? 'border-red-500' : 'border-gray-300'}`}
                     />
+                    {fieldErrors.goal_date && (
+                      <p className="mt-2 text-sm text-red-600">{fieldErrors.goal_date}</p>
+                    )}
                   </div>
                 </div>
               </div>

@@ -1,5 +1,6 @@
 // API_BASE_URLを共通設定からインポート
 import { API_BASE_URL } from '../config/apiConfig';
+import { toJapanDateKey } from './dateUtils';
 
 const normalizeInstructorComments = (instructorComment) => {
   if (!instructorComment) {
@@ -230,7 +231,7 @@ export const getUserHealthData = async (userId, date) => {
       
       const userReport = reports.find(report => {
         // 日付の正規化（ISO形式からYYYY-MM-DD形式に変換）
-        const reportDate = new Date(report.date).toISOString().split('T')[0];
+        const reportDate = toJapanDateKey(report.date);
         const isUserMatch = report.user_id == userId;
         const isDateMatch = reportDate === date;
         
@@ -413,7 +414,7 @@ export const getUserWorkPlan = async (userId, date) => {
       
       const userReport = reports.find(report => {
         // 日付の正規化（ISO形式からYYYY-MM-DD形式に変換）
-        const reportDate = new Date(report.date).toISOString().split('T')[0];
+        const reportDate = toJapanDateKey(report.date);
         const isUserMatch = report.user_id == userId;
         const isDateMatch = reportDate === date;
         

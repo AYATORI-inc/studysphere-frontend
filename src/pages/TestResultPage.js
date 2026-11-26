@@ -596,7 +596,7 @@ const TestResultPage = () => {
       if (resultData.testType === 'section' && resultData.sectionIndex != null) {
         params.set('section', String(resultData.sectionIndex));
       }
-      navigate(`/student/enhanced-learning?${params.toString()}`);
+      navigate(`/student/old-enhanced-learning?${params.toString()}`);
     } catch (err) {
       console.error('学習画面への遷移エラー:', err);
       alert('学習画面への遷移に失敗しました。ダッシュボードに戻ります。');
@@ -612,11 +612,11 @@ const TestResultPage = () => {
       alert('提出物が未提出です');
       const currentLessonId = resultData?.lessonId ?? resultData?.lessonNumber;
       if (currentLessonId != null) {
-        navigate(`/student/enhanced-learning?course=${nextLesson.courseId}&lesson=${currentLessonId}`);
+        navigate(`/student/old-enhanced-learning?course=${nextLesson.courseId}&lesson=${currentLessonId}`);
       }
       return;
     }
-    navigate(`/student/enhanced-learning?course=${nextLesson.courseId}&lesson=${nextLesson.id}`);
+    navigate(`/student/old-enhanced-learning?course=${nextLesson.courseId}&lesson=${nextLesson.id}`);
   };
 
   const handleGoToNextSection = () => {
@@ -624,7 +624,7 @@ const TestResultPage = () => {
     const lessonId = resultData?.lessonId ?? resultData?.lessonNumber;
     const nextIdx = nextSection.nextSectionIndex;
     if (lessonId == null || nextIdx == null) return;
-    navigate(`/student/enhanced-learning?course=${nextSection.courseId}&lesson=${lessonId}&section=${nextIdx}`);
+    navigate(`/student/old-enhanced-learning?course=${nextSection.courseId}&lesson=${lessonId}&section=${nextIdx}`);
   };
 
   if (loading) {

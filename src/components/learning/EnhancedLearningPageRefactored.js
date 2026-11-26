@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useContext, useCallback } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { AuthContext } from '../contexts/AuthContext';
 import { useLearningProgress } from './LearningProgressManager';
 import LearningHeader from './LearningHeader';
@@ -20,6 +20,10 @@ import LearningWorkspaceLayout, {
 
 const EnhancedLearningPageRefactored = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const learningPath = location.pathname.startsWith('/student/old-enhanced-learning')
+    ? '/student/old-enhanced-learning'
+    : '/student/enhanced-learning';
   const { currentUser } = useContext(AuthContext);
   const [searchParams] = useSearchParams();
   const previewUserIdParam = searchParams.get('previewUserId');
@@ -733,9 +737,9 @@ const EnhancedLearningPageRefactored = () => {
       // プレビュー中はプレビューパラメータを引き継ぐ
       if (isPreview) {
         const params = buildPreviewQueryParams({ course: String(courseData.id), lesson: String(lessonId) });
-        navigate(`/student/enhanced-learning?${params.toString()}`);
+        navigate(`${learningPath}?${params.toString()}`);
       } else {
-        navigate(`/student/enhanced-learning?course=${courseData.id}&lesson=${lessonId}`);
+        navigate(`${learningPath}?course=${courseData.id}&lesson=${lessonId}`);
       }
     }
     
@@ -2053,7 +2057,7 @@ const EnhancedLearningPageRefactored = () => {
   // 学習画面表示条件を変更: 学習データ読み込み完了後は表示、PDF処理は並行継続
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-cyan-50 flex items-center justify-center">
+      <div className="student-shell min-h-screen bg-gradient-to-br from-blue-50 to-cyan-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-blue-600 text-xl font-semibold">
@@ -2066,7 +2070,7 @@ const EnhancedLearningPageRefactored = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-cyan-50 flex items-center justify-center">
+      <div className="student-shell min-h-screen bg-gradient-to-br from-blue-50 to-cyan-50 flex items-center justify-center">
         <div className="text-center">
           <div className="text-red-600 text-xl font-semibold mb-4">エラーが発生しました</div>
           <p className="text-gray-600 mb-4">{error}</p>
@@ -2082,7 +2086,7 @@ const EnhancedLearningPageRefactored = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-cyan-50">
+    <div className="student-shell min-h-screen bg-gradient-to-br from-blue-50 to-cyan-50">
       {isPreview && (
         <div className="w-full bg-yellow-50 border-b border-yellow-200 px-4 py-2 sticky top-0 z-[60]">
           <div className="max-w-7xl mx-auto text-yellow-800 text-sm">
@@ -2091,7 +2095,7 @@ const EnhancedLearningPageRefactored = () => {
         </div>
       )}
       {/* ヘッダー＋ステータスバー（スクロール時も固定表示） */}
-      <div className="sticky top-0 z-50 bg-gradient-to-br from-blue-50 to-cyan-50 shadow-md">
+      <div className="student-chrome sticky top-0 z-50 bg-gradient-to-br from-blue-50 to-cyan-50 shadow-md">
         <LearningHeader
           lessonData={lessonData}
           courseData={courseData}

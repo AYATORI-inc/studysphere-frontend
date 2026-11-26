@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 
 const AdminHeader = ({ user }) => {
@@ -64,7 +65,12 @@ const AdminHeader = ({ user }) => {
     <header className="bg-gradient-to-r from-red-500 to-red-400 text-white py-4 shadow-lg">
       <div className="max-w-7xl mx-auto px-5 flex justify-between items-center">
         <div className="flex items-center gap-4">
-          <h1 className="text-2xl font-bold text-white m-0">Study Sphere</h1>
+          <Link
+            to="/admin/dashboard"
+            className="text-2xl font-bold text-white m-0 leading-none hover:opacity-80"
+          >
+            Study Sphere
+          </Link>
         </div>
         <div className="flex items-center gap-4">
           <span className="font-medium text-white">{user.name}</span>

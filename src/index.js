@@ -3,7 +3,11 @@ import './utils/consoleFilter';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
+import './styles/studentColorMode.css';
 import App from './App';
+import { syncStudentColorMode } from './utils/studentColorMode';
+
+syncStudentColorMode(window.location.pathname);
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(

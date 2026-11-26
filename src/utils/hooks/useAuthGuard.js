@@ -54,7 +54,8 @@ export const useAuthGuard = () => {
     // 指導員ダッシュボード選択中はリダイレクトを無効にする
     if (isAuthenticated && currentUser && currentUser.role >= 9) {
       // 企業・拠点選択画面や指導員ダッシュボードへの遷移中は管理者ダッシュボードへのリダイレクトを無効
-      if (pathname.startsWith('/instructor/dashboard') || 
+      if (pathname.startsWith('/instructor/dashboard') ||
+          pathname.startsWith('/instructor/old-dashboard') ||
           pathname.includes('company-selection') || 
           pathname.includes('satellite-selection')) {
         console.log('Admin user accessing instructor dashboard or selection pages - allowing access');
@@ -67,13 +68,13 @@ export const useAuthGuard = () => {
       const role = currentUser.role;
       
       // 管理者（ロール9以上）が指導員ダッシュボードにアクセスしている場合は許可
-      if (role >= 9 && pathname.startsWith('/instructor/dashboard')) {
+      if (role >= 9 && (pathname.startsWith('/instructor/dashboard') || pathname.startsWith('/instructor/old-dashboard'))) {
         console.log('Admin user accessing instructor dashboard - allowing access');
         return;
       }
       
-      // 指導員（ロール4-8）が管理者ダッシュボードにアクセスしている場合はリダイレクト
-      if (role >= 4 && role <= 8 && pathname.startsWith('/admin/dashboard')) {
+      // 指導員（ロール4-8）が管理者画面にアクセスしている場合はリダイレクト
+      if (role >= 4 && role <= 8 && pathname.startsWith('/admin/')) {
         console.log('Instructor user accessing admin dashboard - redirecting to instructor dashboard');
         navigate('/instructor/dashboard');
         return;
@@ -192,12 +193,12 @@ export const useInstructorGuard = () => {
 };
 
 // 利用者専用ページ用のガード
-export const useStudentGuard = () => {
+export const useStudentGuard = ({ allowPreview = false } = {}) => {
   const { isAuthenticated, isLoading, currentUser } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (isLoading) return;
+    if (allowPreview || isLoading) return;
 
     if (!isAuthenticated) {
       navigate('/homepage');
@@ -208,7 +209,7 @@ export const useStudentGuard = () => {
       navigate('/homepage');
       return;
     }
-  }, [isAuthenticated, isLoading, currentUser, navigate]);
+  }, [allowPreview, isAuthenticated, isLoading, currentUser, navigate]);
 
   return { isAuthenticated, isLoading, currentUser };
 }; 
