@@ -675,6 +675,13 @@ const StudentDashboard = () => {
             >
               📚 レッスン一覧
             </button>
+            <button
+              type="button"
+              className="px-4 py-2 rounded-lg font-medium text-gray-600 hover:bg-blue-50 hover:text-blue-700 transition-all duration-200"
+              onClick={() => navigate('/student/account')}
+            >
+              👤 マイページ
+            </button>
             <a
               href="https://jobconnect.ayatori-inc.co.jp/"
               target="_blank"

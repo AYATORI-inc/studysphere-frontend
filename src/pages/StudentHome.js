@@ -151,6 +151,7 @@ const StudentHome = ({ messageRefreshSignal = 0, onOpenLessons }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [openingCourseId, setOpeningCourseId] = useState(null);
+  const [badgeCount, setBadgeCount] = useState(null);
 
   useEffect(() => {
     const loadHome = async () => {
@@ -162,10 +163,23 @@ const StudentHome = ({ messageRefreshSignal = 0, onOpenLessons }) => {
       try {
         setLoading(true);
         setError(null);
-        const [coursesResponse, currentLessonResponse] = await Promise.all([
+        setBadgeCount(null);
+        const [coursesResponse, currentLessonResponse, certificateResponse] = await Promise.all([
           fetchStudentCourses(),
           fetch(`${API_BASE_URL}/api/learning/current-lesson`, { headers: authHeaders() }),
+          fetch(`${API_BASE_URL}/api/learning/certificates/${currentUser.id}`, { headers: authHeaders() }),
         ]);
+
+        try {
+          if (certificateResponse.ok) {
+            const certificateData = await certificateResponse.json();
+            if (certificateData.success && Array.isArray(certificateData.data)) {
+              setBadgeCount(certificateData.data.length);
+            }
+          }
+        } catch (certificateError) {
+          console.error('修了証件数の取得に失敗しました:', certificateError);
+        }
 
         const enrolled = coursesResponse?.success ? (coursesResponse.data || []) : [];
         let lesson = null;
@@ -292,44 +306,72 @@ const StudentHome = ({ messageRefreshSignal = 0, onOpenLessons }) => {
 
   return (
     <div className="space-y-8">
-      <section className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
-        <h2 className="text-2xl font-bold text-gray-800">前回の続きから学習</h2>
-        {loading && <p className="mt-4 text-gray-500">読み込み中...</p>}
-        {!loading && error && <p className="mt-4 text-red-600">{error}</p>}
-        {!loading && !error && resumeLesson && (
-          <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <section className="md:col-span-2 bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-2xl font-bold text-gray-800">前回の続きから学習</h2>
+            {!loading && !error && resumeLesson && (
+              <button
+                type="button"
+                className="px-5 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium"
+                onClick={() => openLesson(resumeLesson.course_id, resumeLesson.lesson_id)}
+              >
+                続きから学習
+              </button>
+            )}
+          </div>
+          <div className="mt-4 grid grid-cols-1 items-center gap-4 sm:grid-cols-2">
             {resumeVideo?.thumbnailUrl && (
               <img
                 src={resumeVideo.thumbnailUrl}
                 alt={resumeVideo.title || resumeLesson.lesson_title}
-                className="w-full sm:w-56 aspect-video object-cover rounded-xl bg-gray-100"
+                className="w-40 justify-self-center aspect-video object-cover rounded-xl bg-gray-100"
                 onError={() => setResumeVideo(null)}
               />
             )}
-            <div className="flex-1 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
-              <p className="text-sm text-gray-500">{resumeLesson.course_title}</p>
-              <p className="mt-1 text-xl font-semibold text-gray-800">{resumeLesson.lesson_title}</p>
-              {resumeLesson.last_accessed_at && (
-                <p className="mt-2 text-sm text-gray-500">
-                  最後に開いた日: {formatJapanDate(resumeLesson.last_accessed_at)}
-                </p>
+              {loading && <p className="text-gray-500">読み込み中...</p>}
+              {!loading && error && <p className="text-red-600">{error}</p>}
+              {!loading && !error && resumeLesson && (
+                <>
+                  <p className="text-sm text-gray-500">{resumeLesson.course_title}</p>
+                  <p className="mt-1 text-xl font-semibold text-gray-800">{resumeLesson.lesson_title}</p>
+                  {resumeLesson.last_accessed_at && (
+                    <p className="mt-2 text-sm text-gray-500">
+                      最後に開いた日: {formatJapanDate(resumeLesson.last_accessed_at)}
+                    </p>
+                  )}
+                </>
+              )}
+              {!loading && !error && !resumeLesson && (
+                <p className="text-gray-500">まだ続きから始められる学習はありません。</p>
               )}
             </div>
-            <button
-              type="button"
-              className="px-5 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium"
-              onClick={() => openLesson(resumeLesson.course_id, resumeLesson.lesson_id)}
-            >
-              続きから学習
-            </button>
-            </div>
           </div>
-        )}
-        {!loading && !error && !resumeLesson && (
-          <p className="mt-4 text-gray-500">まだ続きから始められる学習はありません。</p>
-        )}
-      </section>
+        </section>
+
+        <section className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100 flex flex-col">
+          <h2 className="text-2xl font-bold text-gray-800">現在の取得バッジ</h2>
+          <p className="mt-4 text-sm text-gray-500">修了証</p>
+          {loading && <p className="mt-2 text-gray-500">読み込み中...</p>}
+          {!loading && badgeCount === null && (
+            <p className="mt-2 text-red-600">修了証の件数を取得できませんでした。</p>
+          )}
+          {!loading && badgeCount !== null && (
+            <p className="mt-2 text-4xl font-bold text-gray-800">
+              {badgeCount}
+              <span className="ml-1 text-lg font-medium text-gray-600">個</span>
+            </p>
+          )}
+          <button
+            type="button"
+            className="mt-auto self-end px-5 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium"
+            onClick={() => navigate('/student/account')}
+          >
+            マイページ
+          </button>
+        </section>
+      </div>
 
       <StudentVoiceCareView
         studentId={currentUser?.id}

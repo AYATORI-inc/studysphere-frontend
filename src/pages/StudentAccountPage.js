@@ -101,6 +101,9 @@ const StudentAccountPage = () => {
   const [profile, setProfile] = useState(null);
   const [profileState, setProfileState] = useState('loading');
   const [colorMode, setColorMode] = useState(readColorMode);
+  const [tokenCopied, setTokenCopied] = useState(false);
+  const [tokenCopyFailed, setTokenCopyFailed] = useState(false);
+  const copyTimer = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -131,6 +134,7 @@ const StudentAccountPage = () => {
     loadProfile();
     return () => {
       cancelled = true;
+      if (copyTimer.current) window.clearTimeout(copyTimer.current);
     };
   }, [currentUser?.id]);
 
@@ -150,6 +154,41 @@ const StudentAccountPage = () => {
     setColorMode(writeColorMode(mode));
   };
 
+  const copyLoginToken = async () => {
+    const token = profile?.login_code || profile?.loginCode || currentUser?.login_code || '';
+    if (!token) return;
+
+    let copied = false;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(token);
+        copied = true;
+      }
+    } catch (copyError) {
+      copied = false;
+    }
+
+    if (!copied) {
+      const area = document.createElement('textarea');
+      area.value = token;
+      area.setAttribute('readonly', '');
+      area.style.position = 'fixed';
+      area.style.left = '-9999px';
+      document.body.appendChild(area);
+      area.select();
+      copied = document.execCommand('copy');
+      document.body.removeChild(area);
+    }
+
+    setTokenCopied(copied);
+    setTokenCopyFailed(!copied);
+    if (copyTimer.current) window.clearTimeout(copyTimer.current);
+    copyTimer.current = window.setTimeout(() => {
+      setTokenCopied(false);
+      setTokenCopyFailed(false);
+    }, 2000);
+  };
+
   if (!currentUser) {
     return (
       <div className="student-shell min-h-screen bg-gradient-to-br from-blue-50 to-cyan-50 flex items-center justify-center">
@@ -159,6 +198,7 @@ const StudentAccountPage = () => {
   }
 
   const userName = profile?.name || currentUser.name || '未設定';
+  const loginToken = profile?.login_code || profile?.loginCode || currentUser.login_code || '';
   const organizationName = profile?.company_name
     || profile?.companyName
     || profile?.satellite_name
@@ -201,7 +241,7 @@ const StudentAccountPage = () => {
 
       <div className="student-nav bg-white shadow-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"
               className="px-4 py-2 rounded-lg font-medium text-gray-600 hover:bg-blue-50 hover:text-blue-700 transition-all duration-200"
@@ -209,9 +249,42 @@ const StudentAccountPage = () => {
             >
               📊 ダッシュボード
             </button>
+            <button
+              type="button"
+              className="px-4 py-2 rounded-lg font-medium text-gray-600 hover:bg-blue-50 hover:text-blue-700 transition-all duration-200"
+              onClick={() => navigate('/student/dashboard', { state: { tab: 'lessons' } })}
+            >
+              📚 レッスン一覧
+            </button>
             <span className="px-4 py-2 rounded-lg font-medium bg-gradient-to-r from-blue-500 to-cyan-600 text-white shadow-lg">
-              アカウント情報
+              👤 マイページ
             </span>
+            <a
+              href="https://jobconnect.ayatori-inc.co.jp/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-4 py-2 rounded-lg font-medium text-gray-600 hover:bg-blue-50 hover:text-blue-700 transition-all duration-200"
+            >
+              🎯 おしごとコネクト
+            </a>
+            <button
+              type="button"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-gray-600 hover:bg-blue-50 hover:text-blue-700 transition-all duration-200"
+              onClick={() => navigate('/student/dashboard', { state: { tab: 'toybox' } })}
+            >
+              <img
+                src="/images/toybox/TOYBOX.webp"
+                alt="TOYBOX"
+                className="h-5 w-auto object-contain"
+              />
+              <span>TOYBOX</span>
+            </button>
+            <Link
+              to="/student/old-dashboard"
+              className="ml-auto px-4 py-2 rounded-lg font-medium text-gray-600 hover:bg-blue-50 hover:text-blue-700 transition-all duration-200"
+            >
+              旧ダッシュボードへ移動
+            </Link>
           </div>
         </div>
       </div>
@@ -224,6 +297,27 @@ const StudentAccountPage = () => {
             <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
               <dt className="text-sm text-gray-500">ユーザー名</dt>
               <dd className="mt-1 text-lg font-semibold text-gray-800">{userName}</dd>
+            </div>
+            <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+              <dt className="text-sm text-gray-500">ログイントークン</dt>
+              <dd className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-2">
+                <p className="min-w-0 break-all text-left font-mono text-lg font-semibold tracking-wide text-gray-800">
+                  {profileState === 'loading' && !loginToken && '読み込み中'}
+                  {profileState === 'error' && !loginToken && '取得できませんでした'}
+                  {(profileState === 'ready' || loginToken) && (loginToken || '未設定')}
+                </p>
+                <button
+                  type="button"
+                  className="ml-auto shrink-0 rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={copyLoginToken}
+                  disabled={!loginToken}
+                >
+                  {tokenCopied ? 'コピーしました' : 'クリップボードにコピー'}
+                </button>
+                {tokenCopyFailed && (
+                  <p className="w-full text-right text-sm text-red-600">できませんでした</p>
+                )}
+              </dd>
             </div>
             <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
               <dt className="text-sm text-gray-500">担当指導員</dt>
